@@ -1,5 +1,9 @@
 OpenGL-Space-station
 ====================
+OpenGL homework
+
+Feladat
+------------
 Készítsen szimulátort műhold befogáshoz a Мир űrállomás számára!
 
 A fényforrás a távoli **nap**.
