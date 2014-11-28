@@ -119,29 +119,35 @@ const int screenWidth = 600;	// alkalmazás ablak felbontása
 const int screenHeight = 600;
 
 
-Color image[screenWidth*screenHeight];	// egy alkalmazás ablaknyi kép
+Color space[screenWidth*screenHeight];	// egy alkalmazás ablaknyi kép
 
+void createSpace(){
+    for(int Y = 0; Y < screenHeight; Y++)
+        for(int X = 0; X < screenWidth; X++) {
+            int current = Y * screenWidth + X;
+            if ((current % 184) == (Y * X % 211))
+                space[current] = Color(1.0f, 1.0f, 1.0f);
+            else
+                space[current] = Color(0.0f, 0.0f, 0.0f);
+        }
+}
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
 void onInitialization( ) { 
 	glViewport(0, 0, screenWidth, screenHeight);
-
-    // Peldakent keszitunk egy kepet az operativ memoriaba
-    for(int Y = 0; Y < screenHeight; Y++)
-		for(int X = 0; X < screenWidth; X++)
-			image[Y*screenWidth + X] = Color((float)X/screenWidth, (float)Y/screenHeight, 0);
-
+    createSpace();
 }
 
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
 void onDisplay( ) {
-    glClearColor(0.1f, 0.2f, 0.3f, 1.0f);		// torlesi szin beallitasa
+    glClearColor(0.0, 0.0, 0.0, 1.0);		// torlesi szin beallitasa
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
 
     // ..
 
     // Peldakent atmasoljuk a kepet a rasztertarba
-    glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, image);
+    glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, space);
+    /*
     // Majd rajzolunk egy kek haromszoget
 	glColor3f(0, 0, 1);
 	glBegin(GL_TRIANGLES);
@@ -149,6 +155,7 @@ void onDisplay( ) {
 		glVertex2f( 0.2f, -0.2f);
 		glVertex2f( 0.0f,  0.2f);
 	glEnd( );
+	*/
 
     // ...
 
