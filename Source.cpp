@@ -17,7 +17,7 @@
 // A feladatmegoldasokban csak olyan gl/glu/glut fuggvenyek hasznalhatok, amelyek
 // 1. Az oran a feladatkiadasig elhangzottak ES (logikai AND muvelet)
 // 2. Az alabbi listaban szerepelnek:  
-// Rendering pass: glBegin, glVertex[2|3]f, glColor3f, glNormal3f, glTexCoord2f, glEnd, glDrawPixels
+// Rendering pass: glBegin, glVertex[2|3]f, glColor3f, glNormal, glTexCoord2f, glEnd, glDrawPixels
 // Transzformaciok: glViewport, glMatrixMode, glLoadIdentity, glMultMatrixf, gluOrtho2D, 
 // glTranslatef, glRotatef, glScalef, gluLookAt, gluPerspective, glPushMatrix, glPopMatrix,
 // Illuminacio: glMaterialfv, glMaterialfv, glMaterialf, glLightfv
@@ -166,16 +166,18 @@ struct Material {
 };
 
 const Material silver(Color(0.51, 0.51, 0.51), Color(0.19, 0.19, 0.19), Color(0.51, 0.51, 0.51), 51.2);
+const Material water(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06*8.0, 0.06*8.0, 0.39*8.0), 80.0);
+const Material sunColor(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0);
 
 const size_t maxControlPoints = 10;
 ControlPoint cp[maxControlPoints];
 size_t cpSize;
 
-void glVertex3f(Vector const &v) {
+void glVertex(Vector const &v) {
     glVertex3f(v.x, v.y, v.z);
 }
 
-void glNormal3f(Vector const &v) {
+void glNormal(Vector const &v) {
     glNormal3f(v.x, v.y, v.z);
 }
 
@@ -303,6 +305,7 @@ public:
 
 class Ellipsoid {
     float a, b, c;
+    Vector pos;
     Material material;
 
     Vector getFirstPartialDerivative(float u, float v) {
@@ -333,17 +336,20 @@ class Ellipsoid {
         if (PI / (-2.0f) < u && u < PI / 2.0f )
             return (getSecondPartialDerivative(u, v) % getFirstPartialDerivative(u, v)).normalized();
         if (PI / (-2.0f) >= u)
-            return Vector(0, 0, 1);
-        return Vector(0, 0, -1);
+            return Vector(0, 0, -1);
+        return Vector(0, 0, 1);
     }
 
 public:
     Ellipsoid(){}
 
-    Ellipsoid(float a, float b, float c, Material const &material) : a(a), b(b), c(c), material(material) {
+    Ellipsoid(float a, float b, float c, Material const &material, Vector const &pos) : a(a), b(b), c(c), material(material), pos(pos) {
     }
 
     void draw() {
+        glPushMatrix();
+        glTranslatef(pos.x, pos.y, pos.z);
+
         float ambient[]  = {material.ambient.r, material.ambient.g, material.ambient.b};
         float diffuse[]  = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
         float specular[] = {material.specular.r, material.specular.g, material.specular.b};
@@ -358,21 +364,55 @@ public:
         glBegin(GL_QUADS);
         for (float u = PI / (-2.0f); u < PI / 2.0f; u += du) {
             for (float v = PI * (-1.0f); v < PI; v += dv) {
-                glNormal3f(getNormal(u, v));
-                glVertex3f(getSurfacePoint(u, v));
-                glNormal3f(getNormal(u + du, v));
-                glVertex3f(getSurfacePoint(u + du, v));
-                glNormal3f(getNormal(u + du, v + dv));
-                glVertex3f(getSurfacePoint(u + du, v + dv));
-                glNormal3f(getNormal(u, v + dv));
-                glVertex3f(getSurfacePoint(u, v + dv));
+                glNormal(getNormal(u, v));
+                glVertex(getSurfacePoint(u, v));
+                glNormal(getNormal(u + du, v));
+                glVertex(getSurfacePoint(u + du, v));
+                glNormal(getNormal(u + du, v + dv));
+                glVertex(getSurfacePoint(u + du, v + dv));
+                glNormal(getNormal(u, v + dv));
+                glVertex(getSurfacePoint(u, v + dv));
             }
         }
         glEnd();
+
+        glPopMatrix();
     }
 };
 
-Ellipsoid ellipsoid;
+class Light0 {
+    Vector pos;
+    Material lightColor;
+
+public:
+    Light0(Vector const &pos, Material const &lightColor)
+    : pos(pos), lightColor(lightColor) {
+        // pozíció, utolsó koordináta 0, ha irányfényforrás
+        GLfloat lightPos[] = {pos.x, pos.y, pos.z, 0};
+        glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
+        GLfloat diffuse[] = {lightColor.diffuse.r, lightColor.diffuse.g, lightColor.diffuse.b, 1.0f};
+        glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
+        GLfloat ambient[] = {lightColor.ambient.r, lightColor.ambient.g, lightColor.ambient.b, 1.0f};
+        glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
+        GLfloat specular[] = {lightColor.specular.r, lightColor.specular.g, lightColor.specular.b, 1.0f};
+        glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
+        float shine = lightColor.shine;
+        glLightf(GL_LIGHT0, GL_SHININESS, lightColor.shine);
+    }
+
+    Light0() {
+    }
+
+    void enable() {
+        glEnable(GL_LIGHTING);
+        glEnable(GL_LIGHT0);
+    }
+
+    void disable() {
+        glDisable(GL_LIGHTING);
+        glDisable(GL_LIGHT0);
+    }
+};
 
 void createSpace(){
     for(int Y = 0; Y < screenHeight; Y++)
@@ -399,50 +439,38 @@ void setPerspective() {
 }
 
 void setCamera() {
-    Vector eye(-3.0f, 2.0f, -2.0f);
+    Vector eye(0.0f, 0.0f, -6.0f);
     Vector lookat(0.0f, 0.0f, 0.0f);
     Vector up(0, 1, 0);
     gluLookAt(eye.x, eye.y, eye.z, lookat.x, lookat.y, lookat.z, up.x, up.y, up.z);
 }
 
+Ellipsoid sun;
+Ellipsoid earth;
+Light0 light;
+
 void build(){
     createSpace();
-    ellipsoid = Ellipsoid(1.0f, 1.0f, 1.0f, silver);
+    Vector center = Vector(5.0f, 0.0f, 0.0f);
+    earth = Ellipsoid(1.0f*5.0f, 0.85f*5.0f, 1.0f*5.0f, water, center);
+
+    Material sunLight;
+    sunLight.shine = 5;
+    sunLight.diffuse = Color(1.0f, 1.0f, 1.0f);
+    sunLight.ambient = Color(1.0f, 1.0f, 1.0f);
+    sunLight.specular = Color(1.0f, 1.0f, 1.0f);
+
+    Vector pos = Vector(-2.0f, 3.0f, 3.0f);
+    sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, pos);
+    light = Light0(pos, sunLight);
 }
 
-void enableLights() {
-    //fény enable
-    glEnable(GL_LIGHTING);
-
-    // fény 0
-    glEnable(GL_LIGHT0);
-    // pozíció, utolsó koordináta 0, ha irányfényforrás
-    //GLfloat p[4] = {-1.1f, 2.0f, -1.2f, 0};
-    GLfloat p[] = {0.0f, 2.0f, 0.0f, 0};
-    glLightfv(GL_LIGHT0, GL_POSITION, p);
-    GLfloat c[4] = {0.7f, 0.8f, 0.9f, 1.0f};
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, c);
-}
-
-void disableLights() {
-    glDisable(GL_LIGHTING);
-}
-
-void throwBack() {
+void enableThrowBack() {
     // hátsólap-eldobás
     glFrontFace(GL_CW); // Az normál irányából nézve CCW a körüljárási irány
     glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
     glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
 }
-
-// Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
-void onInitialization( ) {
-    build();
-    setPerspective();
-    setCamera();
-    glShadeModel(GL_SMOOTH);
-}
-
 void drawSpace() {
     glDisable(GL_DEPTH_TEST);
     glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, space);
@@ -453,16 +481,31 @@ void debug() {
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 }
 
+// Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
+void onInitialization( ) {
+    build();
+    setPerspective();
+    setCamera();
+    glShadeModel(GL_SMOOTH);
+    light.enable();
+}
+
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
 void onDisplay( ) {
     glClearColor(0.0, 0.0, 0.0, 1.0);		// torlesi szin beallitasa
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
-    debug();
+    //debug();
 
     drawSpace();
-    enableLights();
-    throwBack();
-    ellipsoid.draw();
+    enableThrowBack();
+    light.disable();
+
+    glColor3f(sunColor.ambient.r, sunColor.ambient.g, sunColor.ambient.b);
+    glEnable(GL_COLOR_MATERIAL);
+    sun.draw();
+    glDisable(GL_COLOR_MATERIAL);
+    light.enable();
+    earth.draw();
 
     glutSwapBuffers();     				// Buffercsere: rajzolas vege
 
