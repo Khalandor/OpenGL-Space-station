@@ -451,8 +451,8 @@ Light0 light;
 
 void build(){
     createSpace();
-    Vector center = Vector(5.0f, 0.0f, 0.0f);
-    earth = Ellipsoid(1.0f*5.0f, 0.85f*5.0f, 1.0f*5.0f, water, center);
+    Vector center = Vector(5.0f, 0.0f, 3.0f);
+    earth = Ellipsoid(1.0f*5.0f, 0.85f*8.0f, 1.0f*5.0f, water, center);
 
     Material sunLight;
     sunLight.shine = 5;
@@ -462,7 +462,7 @@ void build(){
 
     Vector pos = Vector(-2.0f, 3.0f, 3.0f);
     sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, pos);
-    light = Light0(pos, sunLight);
+    light = Light0(Vector(2.0f, 3.0f, 3.0f), sunLight);
 }
 
 void enableThrowBack() {
