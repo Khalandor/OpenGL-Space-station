@@ -179,46 +179,6 @@ void glNormal3f(Vector const &v) {
     glNormal3f(v.x, v.y, v.z);
 }
 
-void glQuad(Vector const &a, Vector const &b, Vector const &c, Vector const &d) {
-    /*
-    glVertex3f(a);
-    glVertex3f(b);
-    glVertex3f(c);
-    glVertex3f(d);
-    */
-
-    Vector normal = ((b-a) % (c-a)).normalized();
-    //glColor3f(fabs(normal.x), fabs(normal.y), fabs(normal.z));
-    glNormal3f(normal.x, normal.y, normal.z);
-    glVertex3f(a); glVertex3f(b); glVertex3f(c); glVertex3f(d);
-}
-
-void drawCube(const Vector& size) {
-    glBegin(GL_QUADS); {
-        /*       (E)-----(A)
-                 /|      /|
-                / |     / |
-              (F)-----(B) |
-               | (H)---|-(D)
-               | /     | /
-               |/      |/
-              (G)-----(C)        */
-
-        Vector s = size / 2;
-
-        Vector A(+s.x, +s.y, -s.z), B(+s.x, +s.y, +s.z), C(+s.x, -s.y, +s.z), D(+s.x, -s.y, -s.z),
-                E(-s.x, +s.y, -s.z), F(-s.x, +s.y, +s.z), G(-s.x, -s.y, +s.z), H(-s.x, -s.y, -s.z);
-
-        glQuad(A, B, C, D);
-        glQuad(E, H, G, F);
-        glQuad(A, E, F, B);
-        glQuad(D, C, G, H);
-        glQuad(B, F, G, C);
-        glQuad(A, D, H, E);
-
-    } glEnd();
-}
-
 class Shape {
 protected:
     static const size_t shapeResolution = 200;
@@ -370,9 +330,9 @@ class Ellipsoid {
     }
 
     Vector getNormal(float u, float v) {
-        if (NEAR_ZERO < u && u < PI )
+        if (PI / (-2.0f) < u && u < PI / 2.0f )
             return (getSecondPartialDerivative(u, v) % getFirstPartialDerivative(u, v)).normalized();
-        if (NEAR_ZERO >= u)
+        if (PI / (-2.0f) >= u)
             return Vector(0, 0, 1);
         return Vector(0, 0, -1);
     }
@@ -470,7 +430,7 @@ void disableLights() {
 
 void throwBack() {
     // hátsólap-eldobás
-    glFrontFace(GL_CCW); // Az normál irányából nézve CCW a körüljárási irány
+    glFrontFace(GL_CW); // Az normál irányából nézve CCW a körüljárási irány
     glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
     glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
 }
@@ -489,15 +449,19 @@ void drawSpace() {
     glEnable(GL_DEPTH_TEST);
 }
 
+void debug() {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+}
+
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
 void onDisplay( ) {
     glClearColor(0.0, 0.0, 0.0, 1.0);		// torlesi szin beallitasa
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
+    debug();
 
     drawSpace();
     enableLights();
-    //throwBack();
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    throwBack();
     ellipsoid.draw();
 
     glutSwapBuffers();     				// Buffercsere: rajzolas vege
