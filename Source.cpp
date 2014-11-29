@@ -62,34 +62,63 @@
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Innentol modosithatod...
 
+#define PI 3.14159265359f
+#define NEAR_ZERO 0.001f
+
 //--------------------------------------------------------
 // 3D Vektor
 //--------------------------------------------------------
 struct Vector {
-   float x, y, z;
+    float x, y, z;
 
-   Vector( ) { 
-	x = y = z = 0;
-   }
-   Vector(float x0, float y0, float z0 = 0) { 
-	x = x0; y = y0; z = z0;
-   }
-   Vector operator*(float a) { 
-	return Vector(x * a, y * a, z * a); 
-   }
-   Vector operator+(const Vector& v) {
- 	return Vector(x + v.x, y + v.y, z + v.z); 
-   }
-   Vector operator-(const Vector& v) {
- 	return Vector(x - v.x, y - v.y, z - v.z); 
-   }
-   float operator*(const Vector& v) { 	// dot product
-	return (x * v.x + y * v.y + z * v.z); 
-   }
-   Vector operator%(const Vector& v) { 	// cross product
-	return Vector(y*v.z-z*v.y, z*v.x - x*v.z, x*v.y - y*v.x);
-   }
-   float Length() { return sqrtf(x * x + y * y + z * z); }
+    Vector() {
+        x = y = z = 0;
+    }
+
+    Vector(float x0, float y0, float z0 = 0) {
+        x = x0;
+        y = y0;
+        z = z0;
+    }
+
+    Vector operator*(float a) const {
+        return Vector(x * a, y * a, z * a);
+    }
+
+    Vector operator/(float a) const {
+        return Vector(x / a, y / a, z / a);
+    }
+
+    Vector operator+(const Vector &v) const {
+        return Vector(x + v.x, y + v.y, z + v.z);
+    }
+
+    Vector operator-(const Vector &v) const {
+        return Vector(x - v.x, y - v.y, z - v.z);
+    }
+
+    float operator*(const Vector &v) const {    // dot product
+        return (x * v.x + y * v.y + z * v.z);
+    }
+
+    Vector operator%(const Vector &v) const {    // cross product
+        return Vector(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
+    }
+
+    float length() const {
+        return sqrtf(x * x + y * y + z * z);
+    }
+
+    Vector normalized() const {
+        return *this / length();
+    }
+
+    Vector operator*=(float a) {
+        x *= a;
+        y *= a;
+        z *= a;
+        return *this;
+    }
 };
  
 //--------------------------------------------------------
@@ -117,9 +146,273 @@ struct Color {
 
 const int screenWidth = 600;	// alkalmazás ablak felbontása
 const int screenHeight = 600;
-
-
 Color space[screenWidth*screenHeight];	// egy alkalmazás ablaknyi kép
+
+struct ControlPoint {
+    Vector originalP;
+    Vector p;
+    float t;
+};
+
+struct Material {
+    Color diffuse, ambient, specular;
+    float shine;
+
+    Material(){};
+
+    Material(Color const &diffuse, Color const &ambient, Color const &specular, float shine)
+            : diffuse(diffuse), ambient(ambient), specular(specular), shine(shine) {
+    }
+};
+
+const Material silver(Color(0.51, 0.51, 0.51), Color(0.19, 0.19, 0.19), Color(0.51, 0.51, 0.51), 51.2);
+
+const size_t maxControlPoints = 10;
+ControlPoint cp[maxControlPoints];
+size_t cpSize;
+
+void glVertex3f(Vector const &v) {
+    glVertex3f(v.x, v.y, v.z);
+}
+
+void glNormal3f(Vector const &v) {
+    glNormal3f(v.x, v.y, v.z);
+}
+
+void glQuad(Vector const &a, Vector const &b, Vector const &c, Vector const &d) {
+    /*
+    glVertex3f(a);
+    glVertex3f(b);
+    glVertex3f(c);
+    glVertex3f(d);
+    */
+
+    Vector normal = ((b-a) % (c-a)).normalized();
+    //glColor3f(fabs(normal.x), fabs(normal.y), fabs(normal.z));
+    glNormal3f(normal.x, normal.y, normal.z);
+    glVertex3f(a); glVertex3f(b); glVertex3f(c); glVertex3f(d);
+}
+
+void drawCube(const Vector& size) {
+    glBegin(GL_QUADS); {
+        /*       (E)-----(A)
+                 /|      /|
+                / |     / |
+              (F)-----(B) |
+               | (H)---|-(D)
+               | /     | /
+               |/      |/
+              (G)-----(C)        */
+
+        Vector s = size / 2;
+
+        Vector A(+s.x, +s.y, -s.z), B(+s.x, +s.y, +s.z), C(+s.x, -s.y, +s.z), D(+s.x, -s.y, -s.z),
+                E(-s.x, +s.y, -s.z), F(-s.x, +s.y, +s.z), G(-s.x, -s.y, +s.z), H(-s.x, -s.y, -s.z);
+
+        glQuad(A, B, C, D);
+        glQuad(E, H, G, F);
+        glQuad(A, E, F, B);
+        glQuad(D, C, G, H);
+        glQuad(B, F, G, C);
+        glQuad(A, D, H, E);
+
+    } glEnd();
+}
+
+class Shape {
+protected:
+    static const size_t shapeResolution = 200;
+    Vector shapePoints[shapeResolution + 1];
+    size_t shapePointSize;
+    Color color;
+
+public:
+    Shape() {
+        shapePointSize = 0;
+    }
+
+    virtual void computeShape() {
+    }
+
+    virtual void drawShape() {
+        glColor3f(color.r, color.g, color.b);
+        glBegin(GL_LINE_STRIP);
+        for (size_t i = 0; i < shapePointSize; i++)
+            glVertex2f(shapePoints[i].x, shapePoints[i].y);
+        glEnd();
+    }
+};
+
+class CatmullRomSpline : public Shape {
+    unsigned pointsBetweenControlPoints;
+    Vector v[maxControlPoints];
+    Vector startV;
+    Vector endV;
+
+    Vector a0(size_t prev) {
+        return cp[prev].p;
+    }
+
+    Vector a1(size_t prev) {
+        return v[prev];
+    }
+
+    Vector a2(size_t prev) {
+        size_t i = prev;
+        Vector p0 = cp[i].p;
+        Vector p1 = cp[i + 1].p;
+        float t0 = cp[i].t;
+        float t1 = cp[i + 1].t;
+        Vector tag1 = (p1 - p0) * 3
+                / pow(t1 - t0, 2);
+        Vector tag2 = (v[i + 1] + v[i] * 2)
+                / (t1 - t0);
+
+        return tag1 - tag2;
+    }
+
+    Vector a3(size_t prev) {
+        size_t i = prev;
+        Vector p0 = cp[i].p;
+        Vector p1 = cp[i + 1].p;
+        float t0 = cp[i].t;
+        float t1 = cp[i + 1].t;
+        Vector tag1 = (p0 - p1) * 2
+                / pow(t1 - t0, 3);
+        Vector tag2 = (v[i + 1] + v[i])
+                / pow(t1 - t0, 2);
+
+        return tag1 + tag2;
+    }
+
+public:
+    CatmullRomSpline() : Shape() {
+        startV = Vector(0.00001, 0.00001, 0.0);
+        endV = Vector(0.00001, 0.00001, 0.0);
+        pointsBetweenControlPoints = shapeResolution / maxControlPoints;
+        color = Color(1.0f, 1.0f, 1.0f);;
+    }
+
+    void computeV() {
+        v[0] = startV;
+        v[cpSize - 1] = endV;
+        for (size_t i = 1; i < cpSize - 1; i++) {
+            Vector p0 = cp[i].p;
+            Vector pp1 = cp[i + 1].p;
+            Vector pm1 = cp[i - 1].p;
+            float t0 = cp[i].t;
+            float tp1 = cp[i + 1].t;
+            float tm1 = cp[i - 1].t;
+
+            Vector tag1 = (pp1 - p0) / (tp1 - t0);
+            Vector tag2 = (p0 - pm1) / (t0 - tm1);
+            v[i] = tag1 + tag2;
+        }
+    }
+
+    Vector getPos(float t, size_t prevIndex) {
+        size_t i = prevIndex;
+        Vector ai0 = a0(i);
+        Vector ai1 = a1(i);
+        Vector ai2 = a2(i);
+        Vector ai3 = a3(i);
+
+        float t0 = cp[i].t;
+
+        return ai3 * pow(t - t0, 3)
+                + ai2 * pow(t - t0, 2)
+                + ai1 * (t - t0)
+                + ai0;
+    }
+
+    void computeShape() {
+        unsigned points = pointsBetweenControlPoints;
+        shapePointSize = 0;
+
+        computeV();
+        for (size_t i = 0; i < cpSize - 1; i++)
+            for (size_t j = i * points; j < (i + 1) * points; j++) {
+                float t = cp[i].t + (
+                        ((cp[i + 1].t - cp[i].t) / (float) points) * (j - (i * (float) points))
+                );
+                shapePoints[j] = getPos(t, i);
+                shapePointSize = j + 1;
+            }
+    }
+};
+
+class Ellipsoid {
+    float a, b, c;
+    Material material;
+
+    Vector getFirstPartialDerivative(float u, float v) {
+        return Vector(
+                a * (-1.0f * sinf(u)) * cosf(v),
+                b * (-1.0f * sinf(u)) * sinf(v),
+                c * cosf(u)
+        );
+    }
+
+    Vector getSecondPartialDerivative(float u, float v) {
+        return Vector(
+                a * cosf(u) * (-1.0f * sinf(v)),
+                b * cosf(u) * cosf(v),
+                0.0f
+        );
+    }
+
+    Vector getSurfacePoint(float u, float v) {
+        return Vector(
+                a * cosf(u) * cosf(v),
+                b * cosf(u) * sinf(v),
+                c * sinf(u)
+        );
+    }
+
+    Vector getNormal(float u, float v) {
+        if (NEAR_ZERO < u && u < PI )
+            return (getSecondPartialDerivative(u, v) % getFirstPartialDerivative(u, v)).normalized();
+        if (NEAR_ZERO >= u)
+            return Vector(0, 0, 1);
+        return Vector(0, 0, -1);
+    }
+
+public:
+    Ellipsoid(){}
+
+    Ellipsoid(float a, float b, float c, Material const &material) : a(a), b(b), c(c), material(material) {
+    }
+
+    void draw() {
+        float ambient[]  = {material.ambient.r, material.ambient.g, material.ambient.b};
+        float diffuse[]  = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
+        float specular[] = {material.specular.r, material.specular.g, material.specular.b};
+        glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
+        glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
+        glMaterialf(GL_FRONT, GL_SHININESS, material.shine);
+
+        const unsigned resolution = 30;
+        float du = PI / resolution;
+        float dv = PI / resolution;
+        glBegin(GL_QUADS);
+        for (float u = PI / (-2.0f); u < PI / 2.0f; u += du) {
+            for (float v = PI * (-1.0f); v < PI; v += dv) {
+                glNormal3f(getNormal(u, v));
+                glVertex3f(getSurfacePoint(u, v));
+                glNormal3f(getNormal(u + du, v));
+                glVertex3f(getSurfacePoint(u + du, v));
+                glNormal3f(getNormal(u + du, v + dv));
+                glVertex3f(getSurfacePoint(u + du, v + dv));
+                glNormal3f(getNormal(u, v + dv));
+                glVertex3f(getSurfacePoint(u, v + dv));
+            }
+        }
+        glEnd();
+    }
+};
+
+Ellipsoid ellipsoid;
 
 void createSpace(){
     for(int Y = 0; Y < screenHeight; Y++)
@@ -132,10 +425,68 @@ void createSpace(){
         }
 }
 
-// Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
-void onInitialization( ) { 
-	glViewport(0, 0, screenWidth, screenHeight);
+void setPerspective() {
+    // képernyő méret
+    glViewport(0, 0, screenWidth, screenHeight);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    // perspektíva és vágás
+    glEnable(GL_DEPTH_TEST);
+    float zNear = 0.1;
+    float zFar = 10;
+    gluPerspective(60, 1, zNear, zFar);
+    glMatrixMode(GL_MODELVIEW);
+}
+
+void setCamera() {
+    Vector eye(-3.0f, 2.0f, -2.0f);
+    Vector lookat(0.0f, 0.0f, 0.0f);
+    Vector up(0, 1, 0);
+    gluLookAt(eye.x, eye.y, eye.z, lookat.x, lookat.y, lookat.z, up.x, up.y, up.z);
+}
+
+void build(){
     createSpace();
+    ellipsoid = Ellipsoid(1.0f, 1.0f, 1.0f, silver);
+}
+
+void enableLights() {
+    //fény enable
+    glEnable(GL_LIGHTING);
+
+    // fény 0
+    glEnable(GL_LIGHT0);
+    // pozíció, utolsó koordináta 0, ha irányfényforrás
+    //GLfloat p[4] = {-1.1f, 2.0f, -1.2f, 0};
+    GLfloat p[] = {0.0f, 2.0f, 0.0f, 0};
+    glLightfv(GL_LIGHT0, GL_POSITION, p);
+    GLfloat c[4] = {0.7f, 0.8f, 0.9f, 1.0f};
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, c);
+}
+
+void disableLights() {
+    glDisable(GL_LIGHTING);
+}
+
+void throwBack() {
+    // hátsólap-eldobás
+    glFrontFace(GL_CCW); // Az normál irányából nézve CCW a körüljárási irány
+    glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
+    glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
+}
+
+// Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
+void onInitialization( ) {
+    build();
+    setPerspective();
+    setCamera();
+    glShadeModel(GL_SMOOTH);
+}
+
+void drawSpace() {
+    glDisable(GL_DEPTH_TEST);
+    glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, space);
+    glEnable(GL_DEPTH_TEST);
 }
 
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
@@ -143,21 +494,11 @@ void onDisplay( ) {
     glClearColor(0.0, 0.0, 0.0, 1.0);		// torlesi szin beallitasa
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
 
-    // ..
-
-    // Peldakent atmasoljuk a kepet a rasztertarba
-    glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, space);
-    /*
-    // Majd rajzolunk egy kek haromszoget
-	glColor3f(0, 0, 1);
-	glBegin(GL_TRIANGLES);
-		glVertex2f(-0.2f, -0.2f);
-		glVertex2f( 0.2f, -0.2f);
-		glVertex2f( 0.0f,  0.2f);
-	glEnd( );
-	*/
-
-    // ...
+    drawSpace();
+    enableLights();
+    //throwBack();
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    ellipsoid.draw();
 
     glutSwapBuffers();     				// Buffercsere: rajzolas vege
 
