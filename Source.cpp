@@ -125,23 +125,55 @@ struct Vector {
 // Spektrum illetve szin
 //--------------------------------------------------------
 struct Color {
-   float r, g, b;
+    float r, g, b;
 
-   Color( ) { 
-	r = g = b = 0;
-   }
-   Color(float r0, float g0, float b0) { 
-	r = r0; g = g0; b = b0;
-   }
-   Color operator*(float a) { 
-	return Color(r * a, g * a, b * a); 
-   }
-   Color operator*(const Color& c) { 
-	return Color(r * c.r, g * c.g, b * c.b); 
-   }
-   Color operator+(const Color& c) {
- 	return Color(r + c.r, g + c.g, b + c.b); 
-   }
+    Color() {
+        r = g = b = 0;
+    }
+
+    Color(float r0, float g0, float b0) {
+        r = r0;
+        g = g0;
+        b = b0;
+    }
+
+    Color operator*(float a) const {
+        return Color(r * a, g * a, b * a);
+    }
+
+    Color operator/(float a) const {
+        return Color(r / a, g / a, b / a);
+    }
+
+    Color operator*(const Color &c) const {
+        return Color(r * c.r, g * c.g, b * c.b);
+    }
+
+    Color operator/(const Color &c) const {
+        return Color(r / c.r, g / c.g, b / c.b);
+    }
+
+    Color operator+(const Color &c) const {
+        return Color(r + c.r, g + c.g, b + c.b);
+    }
+
+    Color operator-(const Color &c) const {
+        return Color(r - c.r, g - c.g, b - c.b);
+    }
+
+    Color operator+=(const Color &c) {
+        r += c.r;
+        g += c.g;
+        b += c.b;
+        return *this;
+    }
+
+    Color operator*=(const Color &c) {
+        r *= c.r;
+        g *= c.g;
+        b *= c.b;
+        return *this;
+    }
 };
 
 const int screenWidth = 600;	// alkalmazás ablak felbontása
@@ -162,6 +194,15 @@ struct Material {
 
     Material(Color const &diffuse, Color const &ambient, Color const &specular, float shine)
             : diffuse(diffuse), ambient(ambient), specular(specular), shine(shine) {
+    }
+
+    Material operator* (float  a) const {
+        Material m;
+        m.ambient = ambient * a;
+        m.diffuse = diffuse * a;
+        m.shine = shine * a;
+        m.specular = specular * a;
+        return m;
     }
 };
 
@@ -307,6 +348,7 @@ class Ellipsoid {
     float a, b, c;
     Vector pos;
     Material material;
+    bool textured;
 
     Vector getFirstPartialDerivative(float u, float v) {
         return Vector(
@@ -343,7 +385,8 @@ class Ellipsoid {
 public:
     Ellipsoid(){}
 
-    Ellipsoid(float a, float b, float c, Material const &material, Vector const &pos) : a(a), b(b), c(c), material(material), pos(pos) {
+    Ellipsoid(float a, float b, float c, Material const &material, Vector const &pos, bool textured)
+            : a(a), b(b), c(c), material(material), pos(pos), textured(textured) {
     }
 
     void draw() {
@@ -447,12 +490,17 @@ void setCamera() {
 
 Ellipsoid sun;
 Ellipsoid earth;
+Ellipsoid satellite;
 Light0 light;
+
+Vector earthCenter = Vector(5.0f, 0.0f, 3.0f);
+Vector sunCenter = Vector(-2.0f, 3.0f, 3.0f);
+Vector satellitePos = Vector(0.0f, 0.0f, 0.0f);
 
 void build(){
     createSpace();
-    Vector center = Vector(5.0f, 0.0f, 3.0f);
-    earth = Ellipsoid(1.0f*5.0f, 0.85f*8.0f, 1.0f*5.0f, water, center);
+
+    earth = Ellipsoid(1.0f*5.0f, 0.85f*8.0f, 1.0f*5.0f, water, earthCenter, true);
 
     Material sunLight;
     sunLight.shine = 5;
@@ -460,9 +508,10 @@ void build(){
     sunLight.ambient = Color(1.0f, 1.0f, 1.0f);
     sunLight.specular = Color(1.0f, 1.0f, 1.0f);
 
-    Vector pos = Vector(-2.0f, 3.0f, 3.0f);
-    sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, pos);
-    light = Light0(Vector(2.0f, 3.0f, 3.0f), sunLight);
+    sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
+    light = Light0(Vector(2.0f, 3.0f, 3.0f), sunLight * 2.0f);
+
+    satellite = Ellipsoid(0.3f, 0.3f, 0.3f, silver, satellitePos, false);
 }
 
 void enableThrowBack() {
@@ -479,6 +528,19 @@ void drawSpace() {
 
 void debug() {
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+}
+
+void drawCircle(Vector center, float radius) {
+    int triangles = 30;
+    float delta = 2 * PI / triangles;
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(center.x, center.y);
+    for (int i = 0; i <= triangles; i++)
+        glVertex2f(
+                center.x + (radius * (float) cos(i * delta)),
+                center.y + (radius * (float) sin(i * delta))
+        );
+    glEnd();
 }
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
@@ -500,12 +562,13 @@ void onDisplay( ) {
     enableThrowBack();
     light.disable();
 
+    //glDisable(GL_LIGHT0);
     glColor3f(sunColor.ambient.r, sunColor.ambient.g, sunColor.ambient.b);
-    glEnable(GL_COLOR_MATERIAL);
+    //drawCircle(Vector(0.0f, 0.0f, 0.0f), 0.5);
     sun.draw();
-    glDisable(GL_COLOR_MATERIAL);
     light.enable();
     earth.draw();
+    satellite.draw();
 
     glutSwapBuffers();     				// Buffercsere: rajzolas vege
 
