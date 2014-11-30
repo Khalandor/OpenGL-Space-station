@@ -460,11 +460,15 @@ class RotatedSpline {
 
 public:
     RotatedSpline() {
-        spline.addControlPoint(Vector(0, 0), 11);
-        spline.addControlPoint(Vector(0.7, 0.5), 19);
-        spline.addControlPoint(Vector(1.7, 0.4), 27.3);
-        spline.addControlPoint(Vector(2.5, 0.6), 33.14);
-        spline.addControlPoint(Vector(3.0, 0), 40.36);
+        spline.addControlPoint(Vector((31.0f - 45.85f) * 10.0f, 42.6) / 100.0f, 0.863);
+        spline.addControlPoint(Vector((35.9f - 45.85f) * 10.0f, 50.0) / 100.0f, 1.367);
+        spline.addControlPoint(Vector((39.6f - 45.85f) * 10.0f, 42.4) / 100.0f, 1.853);
+        spline.addControlPoint(Vector((42.8f - 45.85f) * 10.0f, 50.9) / 100.0f, 2.37);
+        spline.addControlPoint(Vector((46.3f - 45.85f) * 10.0f, 43.2) / 100.0f, 2.91);
+        spline.addControlPoint(Vector((50.1f - 45.85f) * 10.0f, 50.6) / 100.0f, 3.49);
+        spline.addControlPoint(Vector((53.7f - 45.85f) * 10.0f, 44.1) / 100.0f, 4.05);
+        spline.addControlPoint(Vector((56.7f - 45.85f) * 10.0f, 50.5) / 100.0f, 4.64);
+        spline.addControlPoint(Vector((60.7f - 45.85f) * 10.0f, 43.0) / 100.0f, 5.22);
         spline.computeV();
 
         circleDelta = 2 * PI / circleRes;
@@ -505,7 +509,7 @@ public:
             }
         }
         glEnd();
-        debugNormals();
+        //debugNormals();
     }
 };
 
@@ -918,7 +922,7 @@ void onInitialization() {
 void onDisplay() {
     glClearColor(0.0, 0.0, 0.0, 1.0);        // torlesi szin beallitasa
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
-    debug();
+    //debug();
 
     /*
     drawSpace();
