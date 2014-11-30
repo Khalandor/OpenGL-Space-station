@@ -380,15 +380,15 @@ class RotatedSpline {
         return Vector(splinePoint.x, splinePoint.y * cosf(angle), splinePoint.y * sinf(angle));
     }
 
-    Vector getNormal(Vector p4, float t4, float angle, Vector currentSplineP) {
-        // p4-hez képest a körön előző pont
+    Vector getNormal(Vector currentP, float t, float angle, Vector currentSplineP) {
+        // currentP-hez képest a körön előző pont
         Vector prevSurfacePointCircle = getSurfacePoint(currentSplineP, angle - circleDelta);
 
-        // p4-hez képest a körön következő pont
+        // currentP-hez képest a körön következő pont
         Vector nextSurfacePointCircle = getSurfacePoint(currentSplineP, angle + circleDelta);
 
-        // p4 -hez képest a spline-on előző pont
-        float prevT = t4 - splineDelta;
+        // currentP -hez képest a spline-on előző pont
+        float prevT = t - splineDelta;
         if (prevT < firstT)
             prevT = firstT;
         size_t prevCp = 0;
@@ -397,8 +397,8 @@ class RotatedSpline {
         Vector prevSplineP = spline.getPos(prevT, prevCp);
         Vector prevSurfacePointSpline = getSurfacePoint(prevSplineP, angle);
 
-        // p4 -hez képest a spline-on következő pont
-        float nextT = t4 + splineDelta;
+        // currentP -hez képest a spline-on következő pont
+        float nextT = t + splineDelta;
         if (nextT > lastT)
             nextT = lastT;
         prevCp = 0;
@@ -407,12 +407,55 @@ class RotatedSpline {
         Vector nextSplineP = spline.getPos(nextT, prevCp);
         Vector nextSurfacePointSpline = getSurfacePoint(nextSplineP, angle);
 
-        Vector comp1 = ((nextSurfacePointCircle - p4) % (nextSurfacePointSpline - p4)).normalized();
-        Vector comp2 = ((nextSurfacePointSpline - p4) % (prevSurfacePointCircle - p4)).normalized();
-        Vector comp3 = ((prevSurfacePointCircle - p4) % (prevSurfacePointSpline - p4)).normalized();
-        Vector comp4 = ((prevSurfacePointSpline - p4) % (nextSurfacePointCircle - p4)).normalized();
+        Vector comp1 = ((nextSurfacePointCircle - currentP) % (nextSurfacePointSpline - currentP)).normalized();
+        Vector comp2 = ((nextSurfacePointSpline - currentP) % (prevSurfacePointCircle - currentP)).normalized();
+        Vector comp3 = ((prevSurfacePointCircle - currentP) % (prevSurfacePointSpline - currentP)).normalized();
+        Vector comp4 = ((prevSurfacePointSpline - currentP) % (nextSurfacePointCircle - currentP)).normalized();
 
         return ((comp1 + comp2 + comp3 + comp4) / 4.0f).normalized();
+    }
+
+    void debugNormals() {
+        for (float t = firstT; t < lastT; t += splineDelta) {
+            size_t prevCp = 0;
+            while (spline.getCp(prevCp + 1).t < t)
+                prevCp++;
+
+            Vector splineP1 = spline.getPos(t, prevCp);
+            Vector splineP2 = spline.getPos(t + splineDelta, prevCp);
+
+            for (int i = 0; i <= circleRes; i++) {
+                float angle = i * circleDelta;
+                Vector rightBottom = getSurfacePoint(splineP1, angle);
+                Vector rightBottomNormal = getNormal(rightBottom, t, angle, splineP1);
+                Vector rightTop = getSurfacePoint(splineP1, angle + circleDelta);
+                Vector rightTopNormal = getNormal(rightTop, t, angle + circleDelta, splineP1);
+                Vector leftBottom = getSurfacePoint(splineP2, angle);
+                Vector leftBottomNormal = getNormal(leftBottom, t + splineDelta, angle, splineP2);
+                Vector leftTop = getSurfacePoint(splineP2, angle + circleDelta);
+                Vector leftTopNormal = getNormal(leftTop, t + splineDelta, angle + circleDelta, splineP2);
+
+                glBegin(GL_LINE_STRIP);
+                glVertex(leftBottom);
+                glVertex(leftBottom + leftBottomNormal * 0.2);
+                glEnd();
+
+                glBegin(GL_LINE_STRIP);
+                glVertex(rightBottom);
+                glVertex(rightBottom + rightBottomNormal * 0.2);
+                glEnd();
+
+                glBegin(GL_LINE_STRIP);
+                glVertex(leftTop);
+                glVertex(leftTop + leftTopNormal * 0.2);
+                glEnd();
+
+                glBegin(GL_LINE_STRIP);
+                glVertex(rightTop);
+                glVertex(rightTop + rightTopNormal * 0.2);
+                glEnd();
+            }
+        }
     }
 
 public:
@@ -462,6 +505,7 @@ public:
             }
         }
         glEnd();
+        debugNormals();
     }
 };
 
