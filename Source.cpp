@@ -42,6 +42,7 @@
 //=============================================================================================
 
 #define _USE_MATH_DEFINES
+
 #include <math.h>
 #include <stdlib.h>
 
@@ -49,14 +50,16 @@
 #include <OpenGL/gl.h>                                                                                                                                                                                                            
 #include <OpenGL/glu.h>                                                                                                                                                                                                           
 #include <GLUT/glut.h>                                                                                                                                                                                                            
-#else                                                                                                                                                                                                                             
+#else
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__)                                                                                                                                                                       
 #include <windows.h>                                                                                                                                                                                                              
-#endif                                                                                                                                                                                                                            
+#endif
+
 #include <GL/gl.h>                                                                                                                                                                                                                
 #include <GL/glu.h>                                                                                                                                                                                                               
 #include <GL/glut.h>                                                                                                                                                                                                              
-#endif          
+
+#endif
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -120,7 +123,7 @@ struct Vector {
         return *this;
     }
 };
- 
+
 //--------------------------------------------------------
 // Spektrum illetve szin
 //--------------------------------------------------------
@@ -176,22 +179,23 @@ struct Color {
     }
 };
 
-const int screenWidth = 600;	// alkalmazás ablak felbontása
+const int screenWidth = 600;    // alkalmazás ablak felbontása
 const int screenHeight = 600;
-Color space[screenWidth*screenHeight];	// egy alkalmazás ablaknyi kép
-GLuint  tex;
+Color space[screenWidth * screenHeight];    // egy alkalmazás ablaknyi kép
+GLuint tex;
 
 struct Material {
     Color diffuse, ambient, specular;
     float shine;
 
-    Material(){};
+    Material() {
+    };
 
     Material(Color const &diffuse, Color const &ambient, Color const &specular, float shine)
             : diffuse(diffuse), ambient(ambient), specular(specular), shine(shine) {
     }
 
-    Material operator* (float  a) const {
+    Material operator*(float a) const {
         Material m;
         m.ambient = ambient * a;
         m.diffuse = diffuse * a;
@@ -202,10 +206,10 @@ struct Material {
 };
 
 const Material silver(Color(0.51, 0.51, 0.51), Color(0.19, 0.19, 0.19), Color(0.51, 0.51, 0.51), 51.2);
-const Material water(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06*8.0, 0.06*8.0, 0.39*8.0), 80.0);
+const Material water(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06 * 8.0, 0.06 * 8.0, 0.39 * 8.0), 80.0);
 //const Material water(Color(0.06, 0.06, 0.39), Color(0, 0, 0), Color(0.06*8.0, 0.06*8.0, 0.39*8.0), 80.0);
 const Material sunColor(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0);
-Color atmosphereColor = Color (157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
+Color atmosphereColor = Color(157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
 
 void glVertex(Vector const &v) {
     glVertex3f(v.x, v.y, v.z);
@@ -368,35 +372,35 @@ class RotatedSpline {
     float circleDelta;
 
 public:
-    RotatedSpline(){
+    RotatedSpline() {
         circleDelta = 2 * PI / circleRes;
-        spline.addControlPoint(Vector(0,0), 11);
-        spline.addControlPoint(Vector(0.7,0.5), 19);
+        spline.addControlPoint(Vector(0, 0), 11);
+        spline.addControlPoint(Vector(0.7, 0.5), 19);
         spline.addControlPoint(Vector(1.7, 0.4), 27.3);
         spline.addControlPoint(Vector(2.5, 0.6), 33.14);
         spline.addControlPoint(Vector(3.0, 0), 40.36);
         spline.computeV();
     }
 
-    void draw(){
+    void draw() {
         glBegin(GL_QUAD_STRIP);
         float firstT = spline.getCp(0).t;
         float lastT = spline.getLastCp().t;
         float splineDelta = (lastT - firstT) / (float) splineRes;
-        for (float t = firstT; t < lastT; t+= splineDelta) {
+        for (float t = firstT; t < lastT; t += splineDelta) {
             size_t prevCp = 0;
-            for (size_t i = 0; spline.getCp(i).t < t; i++)
-                prevCp = i;
+            while (spline.getCp(prevCp + 1).t < t)
+                prevCp++;
 
-            Vector p1 = spline.getPos(t, prevCp);
-            Vector p2 = spline.getPos(t + splineDelta, prevCp);
+            Vector splineP1 = spline.getPos(t, prevCp);
+            Vector splineP2 = spline.getPos(t + splineDelta, prevCp);
 
             for (int i = 0; i <= circleRes; i++) {
                 float angle = i * circleDelta;
-                Vector rightBottom = Vector(p1.x, p1.y * cosf(angle), p1.y * sinf(angle));
-                Vector rightTop = Vector(p1.x, p1.y * cosf(angle + circleDelta), p1.y * sinf(angle + circleDelta));
-                Vector leftBottom = Vector(p2.x, p2.y * cosf(angle), p2.y * sinf(angle));
-                Vector leftTop = Vector(p2.x, p2.y * cosf(angle + circleDelta), p2.y * sinf(angle + circleDelta));
+                Vector rightBottom = Vector(splineP1.x, splineP1.y * cosf(angle), splineP1.y * sinf(angle));
+                Vector rightTop = Vector(splineP1.x, splineP1.y * cosf(angle + circleDelta), splineP1.y * sinf(angle + circleDelta));
+                Vector leftBottom = Vector(splineP2.x, splineP2.y * cosf(angle), splineP2.y * sinf(angle));
+                Vector leftTop = Vector(splineP2.x, splineP2.y * cosf(angle + circleDelta), splineP2.y * sinf(angle + circleDelta));
 
                 glVertex(leftBottom);
                 glVertex(rightBottom);
@@ -439,7 +443,7 @@ class Ellipsoid {
     }
 
     Vector getNormal(float u, float v) {
-        if (PI / (-2.0f) < u && u < PI / 2.0f )
+        if (PI / (-2.0f) < u && u < PI / 2.0f)
             return (getSecondPartialDerivative(u, v) % getFirstPartialDerivative(u, v)).normalized();
         if (PI / (-2.0f) >= u)
             return Vector(0, 0, -1);
@@ -447,7 +451,8 @@ class Ellipsoid {
     }
 
 public:
-    Ellipsoid(){}
+    Ellipsoid() {
+    }
 
     Ellipsoid(float a, float b, float c, Material const &material, Vector const &pos, bool textured)
             : a(a), b(b), c(c), material(material), pos(pos), textured(textured) {
@@ -457,14 +462,14 @@ public:
         glPushMatrix();
         glTranslatef(pos.x, pos.y, pos.z);
 
-        if (textured){
+        if (textured) {
             glRotatef(90.0f, 1, 0, 0);
             glEnable(GL_TEXTURE_2D);
             glBindTexture(GL_TEXTURE_2D, tex);
         }
 
-        float ambient[]  = {material.ambient.r, material.ambient.g, material.ambient.b};
-        float diffuse[]  = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
+        float ambient[] = {material.ambient.r, material.ambient.g, material.ambient.b};
+        float diffuse[] = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
         float specular[] = {material.specular.r, material.specular.g, material.specular.b};
         glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
         glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
@@ -538,8 +543,8 @@ public:
         glRotatef(rotate.z, 0, 0, 1);
         glScalef(r, height, r);
 
-        float ambient[]  = {material.ambient.r, material.ambient.g, material.ambient.b};
-        float diffuse[]  = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
+        float ambient[] = {material.ambient.r, material.ambient.g, material.ambient.b};
+        float diffuse[] = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
         float specular[] = {material.specular.r, material.specular.g, material.specular.b};
         glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
         glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
@@ -573,7 +578,7 @@ class Light0 {
 
 public:
     Light0(Vector const &pos, Material const &lightColor)
-    : pos(pos), lightColor(lightColor) {
+            : pos(pos), lightColor(lightColor) {
         // pozíció, utolsó koordináta 0, ha irányfényforrás
         GLfloat lightPos[] = {pos.x, pos.y, pos.z, 0};
         glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
@@ -605,7 +610,7 @@ float noise(int x, int y) {
     int n = x + y * 57;
     n = (n << 13) ^ n;
     int rand1 = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
-    return (1.0f - ((float)rand1/ 1073741824.0f));
+    return (1.0f - ((float) rand1 / 1073741824.0f));
 }
 
 float smoothedNoise(float x, float y) {
@@ -659,12 +664,12 @@ void createTexture() {
     int textureWidth = 32;
     int textureHeight = 32;
     GLubyte texture_data[textureWidth * textureHeight][3];
-    for(int Y = 0; Y < textureHeight; Y++)
-        for(int X = 0; X < textureWidth; X++) {
+    for (int Y = 0; Y < textureHeight; Y++)
+        for (int X = 0; X < textureWidth; X++) {
             float noise = perlin(X, Y, 4, 1.0f / powf(2, 5)) + 0.5f;
-            texture_data[Y * textureWidth + X][0] = (GLubyte) (255 - (unsigned)(noise * 128 * 1.5));
-            texture_data[Y * textureWidth + X][1] = (GLubyte) (255 - (unsigned)(noise * 10 * 2));
-            texture_data[Y * textureWidth + X][2] = (GLubyte) (255 - (unsigned)(noise * 255 * 2));
+            texture_data[Y * textureWidth + X][0] = (GLubyte) (255 - (unsigned) (noise * 128 * 1.5));
+            texture_data[Y * textureWidth + X][1] = (GLubyte) (255 - (unsigned) (noise * 10 * 2));
+            texture_data[Y * textureWidth + X][2] = (GLubyte) (255 - (unsigned) (noise * 255 * 2));
         }
 
     glBindTexture(GL_TEXTURE_2D, tex);
@@ -674,9 +679,9 @@ void createTexture() {
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void createSpace(){
-    for(int Y = 0; Y < screenHeight; Y++)
-        for(int X = 0; X < screenWidth; X++) {
+void createSpace() {
+    for (int Y = 0; Y < screenHeight; Y++)
+        for (int X = 0; X < screenWidth; X++) {
             int current = Y * screenWidth + X;
             if ((current % 184) == (Y * X % 211))
                 space[current] = Color(1.0f, 1.0f, 1.0f);
@@ -724,15 +729,15 @@ public:
 
     Satellite(Vector const &pos, float size) : pos(pos), size(size) {
         satelliteBody = Ellipsoid(size, size, size, silver, pos, false);
-        jet1 = Cone(size/1.5f, size, pos + Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), silver);
-        jet2 = Cone(size/1.5f, size, pos + Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), silver);
-        jet3 = Cone(size/1.5f, size, pos + Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), silver);
-        jet4 = Cone(size/1.5f, size, pos + Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), silver);
-        jet5 = Cone(size/1.5f, size, pos + Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), silver);
-        jet6 = Cone(size/1.5f, size, pos + Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), silver);
+        jet1 = Cone(size / 1.5f, size, pos + Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), silver);
+        jet2 = Cone(size / 1.5f, size, pos + Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), silver);
+        jet3 = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), silver);
+        jet4 = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), silver);
+        jet5 = Cone(size / 1.5f, size, pos + Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), silver);
+        jet6 = Cone(size / 1.5f, size, pos + Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), silver);
     }
 
-    void draw(){
+    void draw() {
         glPushMatrix();
         satelliteBody.draw();
         jet1.draw();
@@ -747,7 +752,7 @@ public:
 
 Vector earthCenter;
 
-void build(){
+void build() {
     earthCenter = Vector(4.0f, 0.0f, 8.0f);
     Vector sunCenter = Vector(-2.0f, 3.0f, 3.0f);
 
@@ -803,7 +808,7 @@ void drawCircle(Vector center, float radius) {
 }
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
-void onInitialization( ) {
+void onInitialization() {
     createTexture();
     build();
     setPerspective();
@@ -813,8 +818,8 @@ void onInitialization( ) {
 }
 
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
-void onDisplay( ) {
-    glClearColor(0.0, 0.0, 0.0, 1.0);		// torlesi szin beallitasa
+void onDisplay() {
+    glClearColor(0.0, 0.0, 0.0, 1.0);        // torlesi szin beallitasa
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
     debug();
 
@@ -847,13 +852,13 @@ void onDisplay( ) {
     light.enable();
     rotatedSpline.draw();
 
-    glutSwapBuffers();     				// Buffercsere: rajzolas vege
+    glutSwapBuffers();                    // Buffercsere: rajzolas vege
 
 }
 
 // Billentyuzet esemenyeket lekezelo fuggveny (lenyomas)
 void onKeyboard(unsigned char key, int x, int y) {
-    if (key == 'd') glutPostRedisplay( ); 		// d beture rajzold ujra a kepet
+    if (key == 'd') glutPostRedisplay();        // d beture rajzold ujra a kepet
 
 }
 
@@ -865,18 +870,17 @@ void onKeyboardUp(unsigned char key, int x, int y) {
 // Eger esemenyeket lekezelo fuggveny
 void onMouse(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)   // A GLUT_LEFT_BUTTON / GLUT_RIGHT_BUTTON illetve GLUT_DOWN / GLUT_UP
-		glutPostRedisplay( ); 						 // Ilyenkor rajzold ujra a kepet
+        glutPostRedisplay();                         // Ilyenkor rajzold ujra a kepet
 }
 
 // Eger mozgast lekezelo fuggveny
-void onMouseMotion(int x, int y)
-{
+void onMouseMotion(int x, int y) {
 
 }
 
 // `Idle' esemenykezelo, jelzi, hogy az ido telik, az Idle esemenyek frekvenciajara csak a 0 a garantalt minimalis ertek
-void onIdle( ) {
-     long time = glutGet(GLUT_ELAPSED_TIME);		// program inditasa ota eltelt ido
+void onIdle() {
+    long time = glutGet(GLUT_ELAPSED_TIME);        // program inditasa ota eltelt ido
 
 }
 
@@ -885,29 +889,29 @@ void onIdle( ) {
 
 // A C++ program belepesi pontja, a main fuggvenyt mar nem szabad bantani
 int main(int argc, char **argv) {
-    glutInit(&argc, argv); 				// GLUT inicializalasa
-    glutInitWindowSize(600, 600);			// Alkalmazas ablak kezdeti merete 600x600 pixel 
-    glutInitWindowPosition(100, 100);			// Az elozo alkalmazas ablakhoz kepest hol tunik fel
-    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);	// 8 bites R,G,B,A + dupla buffer + melyseg buffer
+    glutInit(&argc, argv);                // GLUT inicializalasa
+    glutInitWindowSize(600, 600);            // Alkalmazas ablak kezdeti merete 600x600 pixel
+    glutInitWindowPosition(100, 100);            // Az elozo alkalmazas ablakhoz kepest hol tunik fel
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);    // 8 bites R,G,B,A + dupla buffer + melyseg buffer
 
-    glutCreateWindow("Grafika hazi feladat");		// Alkalmazas ablak megszuletik es megjelenik a kepernyon
+    glutCreateWindow("Grafika hazi feladat");        // Alkalmazas ablak megszuletik es megjelenik a kepernyon
 
-    glMatrixMode(GL_MODELVIEW);				// A MODELVIEW transzformaciot egysegmatrixra inicializaljuk
+    glMatrixMode(GL_MODELVIEW);                // A MODELVIEW transzformaciot egysegmatrixra inicializaljuk
     glLoadIdentity();
-    glMatrixMode(GL_PROJECTION);			// A PROJECTION transzformaciot egysegmatrixra inicializaljuk
+    glMatrixMode(GL_PROJECTION);            // A PROJECTION transzformaciot egysegmatrixra inicializaljuk
     glLoadIdentity();
 
-    onInitialization();					// Az altalad irt inicializalast lefuttatjuk
+    onInitialization();                    // Az altalad irt inicializalast lefuttatjuk
 
-    glutDisplayFunc(onDisplay);				// Esemenykezelok regisztralasa
-    glutMouseFunc(onMouse); 
+    glutDisplayFunc(onDisplay);                // Esemenykezelok regisztralasa
+    glutMouseFunc(onMouse);
     glutIdleFunc(onIdle);
     glutKeyboardFunc(onKeyboard);
     glutKeyboardUpFunc(onKeyboardUp);
     glutMotionFunc(onMouseMotion);
 
-    glutMainLoop();					// Esemenykezelo hurok
-    
+    glutMainLoop();                    // Esemenykezelo hurok
+
     return 0;
 }
 
