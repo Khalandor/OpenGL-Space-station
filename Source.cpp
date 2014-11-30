@@ -207,9 +207,9 @@ struct Material {
     }
 };
 
-const Material silver(Color(0.51, 0.51, 0.51), Color(0.19, 0.19, 0.19), Color(0.51, 0.51, 0.51), 51.2);
-const Material water(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06 * 8.0, 0.06 * 8.0, 0.39 * 8.0), 80.0);
-//const Material water(Color(0.06, 0.06, 0.39), Color(0, 0, 0), Color(0.06*8.0, 0.06*8.0, 0.39*8.0), 80.0);
+// diffuse, ambient, specular, shine
+const Material chrome(Color(0.4, 0.4, 0.4) * 0.3f, Color(0.25, 0.25, 0.25) * 0.3f, Color(0.77, 0.77, 0.77) * 0.3f, 0.6 * 0.3f);
+const Material planet(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06 * 8.0, 0.06 * 8.0, 0.39 * 8.0), 80.0);
 const Material sunColor(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0);
 Color atmosphereColor = Color(157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
 
@@ -239,6 +239,7 @@ protected:
 public:
     Shape() {
         shapePointSize = 0;
+        cpSize = 0;
     }
 
     virtual void computeShape() {
@@ -369,8 +370,12 @@ public:
 
 class RotatedSpline {
     CatmullRomSpline spline;
-    const static int splineRes = 30;
-    const static int circleRes = 10;
+    Material material;
+    Vector pos, rotate, scale;
+
+    const static int splineRes = 60;
+    const static int circleRes = 30;
+
     float circleDelta;
     float splineDelta;
     float firstT;
@@ -460,6 +465,11 @@ class RotatedSpline {
 
 public:
     RotatedSpline() {
+    }
+
+
+    RotatedSpline(Vector const &pos, Vector const &rotate, Vector const &scale, Material material)
+            : pos(pos), rotate(rotate), scale(scale), material(material) {
         spline.addControlPoint(Vector((31.0f - 45.85f) * 10.0f, 42.6) / 100.0f, 0.863);
         spline.addControlPoint(Vector((35.9f - 45.85f) * 10.0f, 50.0) / 100.0f, 1.367);
         spline.addControlPoint(Vector((39.6f - 45.85f) * 10.0f, 42.4) / 100.0f, 1.853);
@@ -478,6 +488,21 @@ public:
     }
 
     void draw() {
+        float ambient[] = {material.ambient.r, material.ambient.g, material.ambient.b};
+        float diffuse[] = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
+        float specular[] = {material.specular.r, material.specular.g, material.specular.b};
+        glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
+        glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
+        glMaterialf(GL_FRONT, GL_SHININESS, material.shine);
+
+        glPushMatrix();
+        glTranslatef(pos.x, pos.y, pos.z);
+        glRotatef(rotate.x, 1, 0, 0);
+        glRotatef(rotate.y, 0, 1, 0);
+        glRotatef(rotate.z, 0, 0, 1);
+        glScalef(scale.x, scale.y, scale.z);
+
         glBegin(GL_QUAD_STRIP);
         for (float t = firstT; t < lastT; t += splineDelta) {
             size_t prevCp = 0;
@@ -509,7 +534,8 @@ public:
             }
         }
         glEnd();
-        //debugNormals();
+        // debugNormals();
+        glPopMatrix();
     }
 };
 
@@ -829,13 +855,13 @@ public:
 
 
     Satellite(Vector const &pos, float size) : pos(pos), size(size) {
-        satelliteBody = Ellipsoid(size, size, size, silver, pos, false);
-        jet1 = Cone(size / 1.5f, size, pos + Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), silver);
-        jet2 = Cone(size / 1.5f, size, pos + Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), silver);
-        jet3 = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), silver);
-        jet4 = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), silver);
-        jet5 = Cone(size / 1.5f, size, pos + Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), silver);
-        jet6 = Cone(size / 1.5f, size, pos + Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), silver);
+        satelliteBody = Ellipsoid(size, size, size, chrome, pos, false);
+        jet1 = Cone(size / 1.5f, size, pos + Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), chrome);
+        jet2 = Cone(size / 1.5f, size, pos + Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), chrome);
+        jet3 = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), chrome);
+        jet4 = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), chrome);
+        jet5 = Cone(size / 1.5f, size, pos + Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), chrome);
+        jet6 = Cone(size / 1.5f, size, pos + Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), chrome);
     }
 
     void draw() {
@@ -852,25 +878,30 @@ public:
 } satellite;
 
 Vector earthCenter;
+Vector stationPos;
+Vector stationRotate;
 
 void build() {
     earthCenter = Vector(4.0f, 0.0f, 8.0f);
-    Vector sunCenter = Vector(-2.0f, 3.0f, 3.0f);
+    Vector sunCenter = Vector(-3.5f, 4.0f, 4.5f);
+    stationPos = Vector(-0.5f, 1.0f, 1.5f);
+    stationRotate = Vector(0.0f, 0, 70);
 
     createSpace();
 
-    //earth = Ellipsoid(1.0f*5.0f, 0.85f*8.0f, 1.0f*5.0f, water, earthCenter, true);
-    earth = Ellipsoid(5.5f, 5.0f, 5.0f, water, earthCenter, true);
-    satellite = Satellite(Vector(-1.5, -0.3, 1), 0.6f);
+    earth = Ellipsoid(5.5f, 5.0f, 5.0f, planet, earthCenter, true);
+    satellite = Satellite(Vector(-2.0f, -0.7, 1), 0.6f);
 
     Material sunLight;
-    sunLight.shine = 5;
+    sunLight.shine = 1;
     sunLight.diffuse = Color(1.0f, 1.0f, 1.0f);
     sunLight.ambient = Color(1.0f, 1.0f, 1.0f);
     sunLight.specular = Color(1.0f, 1.0f, 1.0f);
 
     sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
-    light = Light0(Vector(2.0f, 3.0f, 3.0f), sunLight * 2.0f);
+    light = Light0(Vector(3.5f, 4.0f, -4.5f), sunLight * 3);
+
+    rotatedSpline = RotatedSpline(stationPos, stationRotate, Vector(1,1,1), chrome);
 
 }
 
@@ -924,7 +955,6 @@ void onDisplay() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
     //debug();
 
-    /*
     drawSpace();
     enableThrowBack();
     light.disable();
@@ -944,14 +974,11 @@ void onDisplay() {
     glDisable(GL_BLEND);
     light.enable();
 
-
-
     disableThrowBack();
+    rotatedSpline.draw();
     satellite.draw();
-    */
 
     light.enable();
-    rotatedSpline.draw();
 
     glutSwapBuffers();                    // Buffercsere: rajzolas vege
 
