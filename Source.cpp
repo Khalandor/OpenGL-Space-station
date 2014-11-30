@@ -179,6 +179,7 @@ struct Color {
 const int screenWidth = 600;	// alkalmazás ablak felbontása
 const int screenHeight = 600;
 Color space[screenWidth*screenHeight];	// egy alkalmazás ablaknyi kép
+GLuint  tex;
 
 struct ControlPoint {
     Vector originalP;
@@ -393,6 +394,11 @@ public:
         glPushMatrix();
         glTranslatef(pos.x, pos.y, pos.z);
 
+        if (textured){
+            glEnable(GL_TEXTURE_2D);
+            glBindTexture(GL_TEXTURE_2D, tex);
+        }
+
         float ambient[]  = {material.ambient.r, material.ambient.g, material.ambient.b};
         float diffuse[]  = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
         float specular[] = {material.specular.r, material.specular.g, material.specular.b};
@@ -401,24 +407,48 @@ public:
         glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
         glMaterialf(GL_FRONT, GL_SHININESS, material.shine);
 
-        const unsigned resolution = 30;
-        float du = PI / resolution;
-        float dv = PI / resolution;
+        const unsigned resolution = 40;
+        float startU = PI / (-2.0f);
+        float startV = PI * (-1.0f);
+        float endU = PI / 2.0f;
+        float endV = PI;
+        float du = (endU - startU) / resolution;
+        float dv = (endV - startV) / resolution;
         glBegin(GL_QUADS);
-        for (float u = PI / (-2.0f); u < PI / 2.0f; u += du) {
-            for (float v = PI * (-1.0f); v < PI; v += dv) {
+        for (float u = startU; u < endU; u += du) {
+            for (float v = startV; v < endV; v += dv) {
+                float uX = (u - startU) / (endU - startU);
+                float uX1 = (u - startU + du) / (endU - startU);
+                float vX = (v - startV) / (endV - startV);
+                float vX1 = (v - startV + dv) / (endV - startV);
+
+                if (textured)
+                    glTexCoord2f(uX, vX);
                 glNormal(getNormal(u, v));
                 glVertex(getSurfacePoint(u, v));
+
+                if (textured)
+                    glTexCoord2f(uX1, vX);
                 glNormal(getNormal(u + du, v));
                 glVertex(getSurfacePoint(u + du, v));
+
+                if (textured)
+                    glTexCoord2f(uX1, vX1);
                 glNormal(getNormal(u + du, v + dv));
                 glVertex(getSurfacePoint(u + du, v + dv));
+
+                if (textured)
+                    glTexCoord2f(uX, vX1);
                 glNormal(getNormal(u, v + dv));
                 glVertex(getSurfacePoint(u, v + dv));
             }
         }
         glEnd();
 
+        if (textured) {
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glDisable(GL_TEXTURE_2D);
+        }
         glPopMatrix();
     }
 };
@@ -456,6 +486,176 @@ public:
         glDisable(GL_LIGHT0);
     }
 };
+
+float noise(int x, int y) {
+    int n = x + y * 57;
+    n = (n << 13) ^ n;
+    int rand1 = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
+    return (1.0f - ((float)rand1/ 1073741824.0f));
+}
+
+float smoothedNoise(float x, float y) {
+    float corners = (noise(x - 1, y - 1) + noise(x + 1, y - 1) + noise(x - 1, y + 1) + noise(x + 1, y + 1)) / 16;
+    float sides = (noise(x - 1, y) + noise(x + 1, y) + noise(x, y - 1) + noise(x, y + 1)) / 8;
+    float center = noise(x, y) / 4;
+    return corners + sides + center;
+}
+
+float interpolate(float a, float b, float x) {
+    float ft = x * PI;
+    float f = (1.0f - cosf(ft)) * 0.5f;
+    return a * (1 - f) + b * f;
+}
+
+float interpolatedNoise(float x, float y) {
+    int integer_X = int(x);
+    float fractional_X = x - integer_X;
+
+    int integer_Y = int(y);
+    float fractional_Y = y - integer_Y;
+
+    float v1 = smoothedNoise(integer_X, integer_Y);
+    float v2 = smoothedNoise(integer_X + 1, integer_Y);
+    float v3 = smoothedNoise(integer_X, integer_Y + 1);
+    float v4 = smoothedNoise(integer_X + 1, integer_Y + 1);
+
+    float i1 = interpolate(v1, v2, fractional_X);
+    float i2 = interpolate(v3, v4, fractional_X);
+
+    return interpolate(i1, i2, fractional_Y);
+}
+
+// Perlin noise elméleti hátterének és pszeudo-kódjának forrása: http://freespace.virgin.net/hugo.elias/models/m_perlin.htm
+float perlin(float x, float y, int octaves, float persistance) {
+    float total = 0;
+    float p = persistance;
+    int n = octaves - 1;
+
+    for (int i = 0; i < n; i++) {
+        float frequency = 2 * i;
+        float amplitude = p * i;
+        total = total + interpolatedNoise(x * frequency, y * frequency) * amplitude;
+    }
+    return total;
+}
+
+void createTexture() {
+    glGenTextures(1, &tex);
+
+    int textureWidth = 32;
+    int textureHeight = 32;
+    GLubyte texture_data[textureWidth * textureHeight][3];
+    for(int Y = 0; Y < textureHeight; Y++)
+        for(int X = 0; X < textureWidth; X++) {
+            float noise = perlin(X, Y, 4, 1.0f / powf(2, 5)) + 0.5f;
+            texture_data[Y * textureWidth + X][0] = (GLubyte) (255 - (unsigned)(noise * 128 * 1.5));
+            texture_data[Y * textureWidth + X][1] = (GLubyte) (255 - (unsigned)(noise * 10 * 2));
+            texture_data[Y * textureWidth + X][2] = (GLubyte) (255 - (unsigned)(noise * 255 * 2));
+        }
+
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, texture_data[0]);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void createTextureContinents() {
+    glGenTextures(1, &tex);
+    // http://www.text-image.com
+    const char* ascii_textures = {
+                    "                                                                                                                                                                                                                                                                "
+                    "                                                                                                                                                                                                                                                                "
+                    "                                                                                                                                                                                                                                                                "
+                    "                                                                                                                                                                                                                                                                "
+                    "                                                              ``  ``````````````````````..........`                                                                                                                                                             "
+                    "                                                                 `.``   ```......................`                                                              `                                                                                               "
+                    "                                         ```               ``````            ..................`                                                          `````````````                                                                                         "
+                    "                                       ````...```   ```   ```..```            ..............``                                                   ``   `````````````````````````````     ``````                                                                  "
+                    "            ````..........``````````````  ```````  ` `.`  ``    `...`        ``.........`````                       `..------..```      ````````````` ````````````````````````````````````````````````````````````                                              "
+                    "        ````...............................`......`...`````    ```.```      `......```        ````                `.----.-----.`````.-.-------.```````````````````````````````````````````````````````````````````````` ``                                      "
+                    "       ```........................................```  ``      `.``         .....`            `.``             ``.---.. `------...------------.````````````````````````````````````````````````````````````````````````                                         "
+                    "     `....````````.............................``         `..``              ```                              -------`  .....-----------------.`````````````````````````````````````````````````````````````  ` ``````                                          "
+                    "    `````          ``.........................`          .....```.                                     `      `.``---`  ``-.------------------.``````````````````````````````````````````````````````           ``                                              "
+                    "                    `..........................```      `.........`                                  ` .`       . `.`   ----------------------.`````````````````````````````````````````````````````            ````                                            "
+                    "                    `..............................` `............```                              `.. `-.`   ``-......-----------------------.````````````````````````````````````````````````````````          ```                                            "
+                    "                    `..............................``........```````                                `  `..``.---------------------------------.``````````````````````````````````````````````````````````          `                                            "
+                    "                   ```.....................````...........```     ```                                  ``..-----------------------------------.```````````````````````````````````````````````````````````                                                      "
+                    "                   `......................``` ```..........``                                           `----------------------`.-.`.------.``````````````````````````````````````````````````````````````                                                      "
+                    "                 ``........................```` ```....``` `                                       ``````---...``-.``.--------   `  `..----`  ````````````````````````````````````````````````````````````    ``                                                "
+                    "                `..........................`..``....```                                            .------.`    ``..```.---.-.   ``    .....`   ```````````````````````````````````````````````````````       ``                                                "
+                    "               `..................................``                                               ------`     ``   `.  ..`  ````````````````   ````````````````````````````````````````````````  ` ```        `                                                "
+                    "                .................................                                                  `....`  ``````  `     ``   `````````````````  `````````````````````````````````````````````````    ```      ``                                               "
+                    "                `..............................``                                                   `.``.........`         `        ``````````````````````````````````````````````````````````````     `    ````                                                "
+                    "                  ..........................``                                                    `................``   `.``       ````````````````````````````````````````````````````````````````                                                             "
+                    "                  ` `............`````````.`                                                     `.....................`..........```````````````````````````````````````````````````````````````````                                                           "
+                    "                  `` `.........`          `.                                                   `..................................` ``````````  `````````````````````````````````````````````````````                                                           "
+                    "                   `  `.......`            `                                                  .....................................` ```````````   ` ```````````````````````````````````````````````                                                            "
+                    "                       `......            ``                                                `.......................................`  ```````````````        `````````````````````````````````````  `                                                          "
+                    "                        ......     ```      ```                                             .........................................` ```````````````         ` ```````````    ```````````` `                                                                  "
+                    "                        ``.....````..            ``                                         `.........................................`  ````````````            `````````        `````````  `                                                                  "
+                    "                            `````...```                                                     ...........................................`  ````````                ```````          ``````````         ``                                                        "
+                    "                                  ```..`                                                    .............................................` ````                    ````              `````````         `                                                        "
+                    "                                     `.`       `` `                                         `..............................................    ``                   ```               `  `````                                                                  "
+                    "                                      ````   `...`.....```                                    `.................................................`                    ``               `    `         `                                                          "
+                    "                                            ..............`                                    `...............................................`                        `              `                  ``                                                    "
+                    "                                            `..................`                                 ```````     ```..............................`                                     ``  ``        ````                                                          "
+                    "                                           `.....................                                               `...........................``                                        `` `      ``````                                                          "
+                    "                                          ......................``                                              ..........................`                                            ```     ``````  `                                                        "
+                    "                                         `.......................``..````                                       `........................`                                              ```    `````  ```        `  ```                                         "
+                    "                                         `................................``                                      .....................`                                                  ``          `            ```..```                                     "
+                    "                                          `..................................`                                     ....................`                                                    ``  `                    `...````                                   "
+                    "                                           `................................`                                      `....................                                                                               ``   ``                                  "
+                    "                                            `..............................`                                       `....................`                                                                                                                       "
+                    "                                             `............................`                                       `.....................`     `.                                                              ``..`    ``                                       "
+                    "                                               ``.........................`                                       ......................   ``..`                                                         ``.``....``   `..                                      "
+                    "                                                  `.......................`                                       `..................`     ....                                                        ``...........```...                                      "
+                    "                                                   ......................`                                         `................       ...`                                                    ````...................``                                    "
+                    "                                                   ..................````                                           ................`     `...                                                  ``..........................`                                   "
+                    "                                                   `................`                                               `.............``       ``                                                   `............................`                                  "
+                    "                                                   `................                                                 .............                                                              .............................`                                  "
+                    "                                                   `...............`                                                  ..........`                                                               `...........................`                                   "
+                    "                                                   `..............`                                                    .......`                                                                 `...``````` ``.`..........``                                    "
+                    "                                                    ..........```                                                      ``````                                                                  ```            ` `.......``                                      "
+                    "                                                    ...........`                                                                                                                                                `....```                 `                      "
+                    "                                                    ........``                                                                                                                                                                          ```                     "
+                    "                                                     `....``                                                                                                                                                      ``                 `                          "
+                    "                                                      .....`                                                                                                                                                                     ````                           "
+                    "                                                      ....`                                                                                                                                                                    ```                              "
+                    "                                                       ....`                                                                                                                                                                                                    "
+                    "                                                        `..                                                                                                                                                                                                     "
+                    "                                                           ```                                                                                                                                                                                                  "
+                    "                                                                                                                                                                                                                                                                "
+                    "                                                                                                                                                                                                                                                                "
+                    "                                                                                                                                                                                                                                                                "
+    };
+
+    int textureWidth = 256;
+    int textureHeight = 64;
+    GLubyte texture_data[textureWidth * textureHeight][3];
+    for(int i = 0; i < textureWidth * textureHeight; i++) {
+        switch(ascii_textures[i]) {
+            case ' ':
+                for(int j = 0; j < 3; j++) {
+                    texture_data[i][j] = 255;
+                }
+                break;
+            default:
+                texture_data[i][0] = 128;
+                texture_data[i][1] = 255;
+                texture_data[i][2] = 0;
+                break;
+        }
+    }
+
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, texture_data[0]);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+
 
 void createSpace(){
     for(int Y = 0; Y < screenHeight; Y++)
@@ -500,7 +700,8 @@ Vector satellitePos = Vector(0.0f, 0.0f, 0.0f);
 void build(){
     createSpace();
 
-    earth = Ellipsoid(1.0f*5.0f, 0.85f*8.0f, 1.0f*5.0f, water, earthCenter, true);
+    //earth = Ellipsoid(1.0f*5.0f, 0.85f*8.0f, 1.0f*5.0f, water, earthCenter, true);
+    earth = Ellipsoid(5.0f, 5.0f, 5.0f, water, earthCenter, true);
 
     Material sunLight;
     sunLight.shine = 5;
@@ -545,12 +746,66 @@ void drawCircle(Vector center, float radius) {
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
 void onInitialization( ) {
+    createTexture();
     build();
     setPerspective();
     setCamera();
     glShadeModel(GL_SMOOTH);
     light.enable();
 }
+
+/*
+void glQuad(const Vector& a, const Vector& b, const Vector& c, const Vector& d) {
+    Vector normal = ((b-a) % (c-a)).normalized();
+    glNormal3f(normal.x, normal.y, normal.z);
+
+    int res = 8; // resolution
+    for(int i = 0; i < res; i++) {
+        for(int j = 0; j < res; j++) {
+            glTexCoord2f(float(i)/res, float(j)/res);
+            glVertex(a + (b-a)*i/res + (d-a)*j/res);
+
+            glTexCoord2f(float(i+1)/res, float(j)/res);
+            glVertex(a + (b-a)*(i+1)/res + (d-a)*j/res);
+
+            glTexCoord2f(float(i+1)/res, float(j+1)/res);
+            glVertex(a + (b-a)*(i+1)/res + (d-a)*(j+1)/res);
+
+            glTexCoord2f(float(i)/res, float(j+1)/res);
+            glVertex(a + (b-a)*i/res + (d-a)*(j+1)/res);
+        }
+    }
+}
+
+void drawCube(const Vector& size) {
+    Vector s = size / 2;
+
+    Vector A(+s.x, +s.y, -s.z), B(+s.x, +s.y, +s.z), C(+s.x, -s.y, +s.z), D(+s.x, -s.y, -s.z),
+            E(-s.x, +s.y, -s.z), F(-s.x, +s.y, +s.z), G(-s.x, -s.y, +s.z), H(-s.x, -s.y, -s.z);
+
+    Vector vertices[6][4] = {
+            {A, B, C, D}, {G, F, E, H}, {A, E, F, B},
+            {D, C, G, H}, {B, F, G, C}, {E, A, D, H}
+    };
+    glPushMatrix();
+    glTranslatef(-1.0f, 0.0f, 0.0f);
+
+    glEnable(GL_TEXTURE_2D);
+
+    for(int i = 0; i < 6; i++) {
+        glBindTexture(GL_TEXTURE_2D, tex); // Ezt semmiképpen se rakd a glBegin - glEnd blokk közé
+
+        glBegin(GL_QUADS); {
+            glQuad(vertices[i][0], vertices[i][1], vertices[i][2], vertices[i][3]);
+        } glEnd();
+    }
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_TEXTURE_2D);
+
+    glPopMatrix();
+}
+*/
 
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
 void onDisplay( ) {
@@ -562,7 +817,6 @@ void onDisplay( ) {
     enableThrowBack();
     light.disable();
 
-    //glDisable(GL_LIGHT0);
     glColor3f(sunColor.ambient.r, sunColor.ambient.g, sunColor.ambient.b);
     //drawCircle(Vector(0.0f, 0.0f, 0.0f), 0.5);
     sun.draw();
