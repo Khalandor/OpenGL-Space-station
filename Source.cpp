@@ -210,6 +210,7 @@ struct Material {
 const Material silver(Color(0.51, 0.51, 0.51), Color(0.19, 0.19, 0.19), Color(0.51, 0.51, 0.51), 51.2);
 const Material water(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06*8.0, 0.06*8.0, 0.39*8.0), 80.0);
 const Material sunColor(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0);
+Color atmosphereColor = Color (157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
 
 const size_t maxControlPoints = 10;
 ControlPoint cp[maxControlPoints];
@@ -805,8 +806,10 @@ public:
     }
 } satellite;
 
+Vector earthCenter;
+
 void build(){
-    Vector earthCenter = Vector(4.0f, 0.0f, 8.0f);
+    earthCenter = Vector(4.0f, 0.0f, 8.0f);
     Vector sunCenter = Vector(-2.0f, 3.0f, 3.0f);
 
     createSpace();
@@ -939,6 +942,16 @@ void onDisplay( ) {
     light.enable();
 
     earth.draw();
+
+    light.disable();
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(atmosphereColor.r, atmosphereColor.g, atmosphereColor.b, 0.2f);
+    drawCircle(earthCenter + Vector(-1.6f, 0.0f, 0.0f), 2.2f);
+    glDisable(GL_BLEND);
+    light.enable();
+
+
 
     disableThrowBack();
     satellite.draw();
