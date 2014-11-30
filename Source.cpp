@@ -113,7 +113,9 @@ struct Vector {
     }
 
     Vector normalized() const {
-        return *this / length();
+        if (length() > 0)
+            return *this / length();
+        else return *this;
     }
 
     Vector operator*=(float a) {
@@ -370,23 +372,66 @@ class RotatedSpline {
     const static int splineRes = 30;
     const static int circleRes = 10;
     float circleDelta;
+    float splineDelta;
+    float firstT;
+    float lastT;
+
+    Vector getSurfacePoint(Vector splinePoint, float angle) {
+        return Vector(splinePoint.x, splinePoint.y * cosf(angle), splinePoint.y * sinf(angle));
+    }
+
+    Vector getNormal(Vector p4, float t4, float angle, Vector currentSplineP) {
+        // p4-hez képest a körön előző pont
+        Vector prevSurfacePointCircle = getSurfacePoint(currentSplineP, angle - circleDelta);
+
+        // p4-hez képest a körön következő pont
+        Vector nextSurfacePointCircle = getSurfacePoint(currentSplineP, angle + circleDelta);
+
+        // p4 -hez képest a spline-on előző pont
+        float prevT = t4 - splineDelta;
+        if (prevT < firstT)
+            prevT = firstT;
+        size_t prevCp = 0;
+        while (spline.getCp(prevCp + 1).t < prevT)
+            prevCp++;
+        Vector prevSplineP = spline.getPos(prevT, prevCp);
+        Vector prevSurfacePointSpline = getSurfacePoint(prevSplineP, angle);
+
+        // p4 -hez képest a spline-on következő pont
+        float nextT = t4 + splineDelta;
+        if (nextT > lastT)
+            nextT = lastT;
+        prevCp = 0;
+        while (spline.getCp(prevCp + 1).t < nextT)
+            prevCp++;
+        Vector nextSplineP = spline.getPos(nextT, prevCp);
+        Vector nextSurfacePointSpline = getSurfacePoint(nextSplineP, angle);
+
+        Vector comp1 = ((nextSurfacePointCircle - p4) % (nextSurfacePointSpline - p4)).normalized();
+        Vector comp2 = ((nextSurfacePointSpline - p4) % (prevSurfacePointCircle - p4)).normalized();
+        Vector comp3 = ((prevSurfacePointCircle - p4) % (prevSurfacePointSpline - p4)).normalized();
+        Vector comp4 = ((prevSurfacePointSpline - p4) % (nextSurfacePointCircle - p4)).normalized();
+
+        return ((comp1 + comp2 + comp3 + comp4) / 4.0f).normalized();
+    }
 
 public:
     RotatedSpline() {
-        circleDelta = 2 * PI / circleRes;
         spline.addControlPoint(Vector(0, 0), 11);
         spline.addControlPoint(Vector(0.7, 0.5), 19);
         spline.addControlPoint(Vector(1.7, 0.4), 27.3);
         spline.addControlPoint(Vector(2.5, 0.6), 33.14);
         spline.addControlPoint(Vector(3.0, 0), 40.36);
         spline.computeV();
+
+        circleDelta = 2 * PI / circleRes;
+        firstT = spline.getCp(0).t;
+        lastT = spline.getLastCp().t;
+        splineDelta = (lastT - firstT) / (float) splineRes;
     }
 
     void draw() {
         glBegin(GL_QUAD_STRIP);
-        float firstT = spline.getCp(0).t;
-        float lastT = spline.getLastCp().t;
-        float splineDelta = (lastT - firstT) / (float) splineRes;
         for (float t = firstT; t < lastT; t += splineDelta) {
             size_t prevCp = 0;
             while (spline.getCp(prevCp + 1).t < t)
@@ -397,14 +442,22 @@ public:
 
             for (int i = 0; i <= circleRes; i++) {
                 float angle = i * circleDelta;
-                Vector rightBottom = Vector(splineP1.x, splineP1.y * cosf(angle), splineP1.y * sinf(angle));
-                Vector rightTop = Vector(splineP1.x, splineP1.y * cosf(angle + circleDelta), splineP1.y * sinf(angle + circleDelta));
-                Vector leftBottom = Vector(splineP2.x, splineP2.y * cosf(angle), splineP2.y * sinf(angle));
-                Vector leftTop = Vector(splineP2.x, splineP2.y * cosf(angle + circleDelta), splineP2.y * sinf(angle + circleDelta));
+                Vector rightBottom = getSurfacePoint(splineP1, angle);
+                Vector rightBottomNormal = getNormal(rightBottom, t, angle, splineP1);
+                Vector rightTop = getSurfacePoint(splineP1, angle + circleDelta);
+                Vector rightTopNormal = getNormal(rightTop, t, angle + circleDelta, splineP1);
+                Vector leftBottom = getSurfacePoint(splineP2, angle);
+                Vector leftBottomNormal = getNormal(leftBottom, t + splineDelta, angle, splineP2);
+                Vector leftTop = getSurfacePoint(splineP2, angle + circleDelta);
+                Vector leftTopNormal = getNormal(leftTop, t + splineDelta, angle + circleDelta, splineP2);
 
+                glNormal(leftBottomNormal);
                 glVertex(leftBottom);
+                glNormal(rightBottomNormal);
                 glVertex(rightBottom);
+                glNormal(leftTopNormal);
                 glVertex(leftTop);
+                glNormal(rightTopNormal);
                 glVertex(rightTop);
             }
         }
