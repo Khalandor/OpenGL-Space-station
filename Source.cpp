@@ -184,7 +184,6 @@ struct Color {
 const int screenWidth = 600;    // alkalmazás ablak felbontása
 const int screenHeight = 600;
 Color space[screenWidth * screenHeight];    // egy alkalmazás ablaknyi kép
-GLuint tex;
 
 struct Material {
     Color diffuse, ambient, specular;
@@ -208,7 +207,7 @@ struct Material {
 };
 
 // diffuse, ambient, specular, shine
-const Material chrome(Color(0.4, 0.4, 0.4) * 0.3f, Color(0.25, 0.25, 0.25) * 0.3f, Color(0.77, 0.77, 0.77) * 0.3f, 0.6 * 0.3f);
+const Material chrome = Material(Color(0.4, 0.4, 0.4), Color(0.25, 0.25, 0.25) * 0.4, Color(0.77, 0.77, 0.77), 0.6);
 const Material planet(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06 * 8.0, 0.06 * 8.0, 0.39 * 8.0), 80.0);
 const Material sunColor(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0);
 Color atmosphereColor = Color(157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
@@ -467,7 +466,7 @@ class RotatedSpline {
         }
     }
 
-    void changeMaterial(Material newMat){
+    void changeMaterial(Material newMat) {
         float ambient[] = {newMat.ambient.r, newMat.ambient.g, newMat.ambient.b};
         float diffuse[] = {newMat.diffuse.r, newMat.diffuse.g, newMat.diffuse.b};
         float specular[] = {newMat.specular.r, newMat.specular.g, newMat.specular.b};
@@ -477,12 +476,12 @@ class RotatedSpline {
         glMaterialf(GL_FRONT, GL_SHININESS, newMat.shine);
     }
 
-    bool isInsideHole(Vector p1){
+    bool isInsideHole(Vector p1) {
         return ((p1 - holeMiddle).length() < holeRadius);
     }
 
     bool isInsideHole(Vector p1, Vector p2, Vector p3, Vector p4) {
-        return  (isInsideHole(p1) && isInsideHole(p2) && isInsideHole(p3) && isInsideHole(p4));
+        return (isInsideHole(p1) && isInsideHole(p2) && isInsideHole(p3) && isInsideHole(p4));
     }
 
 public:
@@ -562,6 +561,94 @@ public:
     }
 };
 
+// A Perlin-zaj elméleti hátterének és pszeudo-kódjának forrása: http://freespace.virgin.net/hugo.elias/models/m_perlin.htm
+class Texture {
+    GLuint tex;
+
+    float noise(int x, int y) {
+        int n = x + y * 57;
+        n = (n << 13) ^ n;
+        int rand1 = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
+        return (1.0f - ((float) rand1 / 1073741824.0f));
+    }
+
+    float smoothedNoise(float x, float y) {
+        float corners = (noise(x - 1, y - 1) + noise(x + 1, y - 1) + noise(x - 1, y + 1) + noise(x + 1, y + 1)) / 16;
+        float sides = (noise(x - 1, y) + noise(x + 1, y) + noise(x, y - 1) + noise(x, y + 1)) / 8;
+        float center = noise(x, y) / 4;
+        return corners + sides + center;
+    }
+
+    float interpolate(float a, float b, float x) {
+        float ft = x * PI;
+        float f = (1.0f - cosf(ft)) * 0.5f;
+        return a * (1 - f) + b * f;
+    }
+
+    float interpolatedNoise(float x, float y) {
+        int integer_X = int(x);
+        float fractional_X = x - integer_X;
+
+        int integer_Y = int(y);
+        float fractional_Y = y - integer_Y;
+
+        float v1 = smoothedNoise(integer_X, integer_Y);
+        float v2 = smoothedNoise(integer_X + 1, integer_Y);
+        float v3 = smoothedNoise(integer_X, integer_Y + 1);
+        float v4 = smoothedNoise(integer_X + 1, integer_Y + 1);
+
+        float i1 = interpolate(v1, v2, fractional_X);
+        float i2 = interpolate(v3, v4, fractional_X);
+
+        return interpolate(i1, i2, fractional_Y);
+    }
+
+    float perlin(float x, float y, int octaves, float persistance) {
+        float total = 0;
+        float p = persistance;
+        int n = octaves - 1;
+
+        for (int i = 0; i < n; i++) {
+            float frequency = 2 * i;
+            float amplitude = p * i;
+            total = total + interpolatedNoise(x * frequency, y * frequency) * amplitude;
+        }
+        return total;
+    }
+
+public:
+    void generate() {
+        glGenTextures(1, &tex);
+
+        int textureWidth = 32;
+        int textureHeight = 32;
+        GLubyte texture_data[textureWidth * textureHeight][3];
+        for (int Y = 0; Y < textureHeight; Y++)
+            for (int X = 0; X < textureWidth; X++) {
+                float noise = perlin(X, Y, 4, 1.0f / powf(2, 5)) + 0.5f;
+                texture_data[Y * textureWidth + X][0] = (GLubyte) (255 - (unsigned) (noise * 128 * 1.5));
+                texture_data[Y * textureWidth + X][1] = (GLubyte) (255 - (unsigned) (noise * 10 * 2));
+                texture_data[Y * textureWidth + X][2] = (GLubyte) (255 - (unsigned) (noise * 255 * 2));
+            }
+
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, texture_data[0]);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    Texture() {
+    }
+
+
+    GLuint getTexture() const {
+        return tex;
+    }
+};
+
+Texture planetTexture;
+
 class Ellipsoid {
     float a, b, c;
     Vector pos;
@@ -615,7 +702,7 @@ public:
         if (textured) {
             glRotatef(90.0f, 1, 0, 0);
             glEnable(GL_TEXTURE_2D);
-            glBindTexture(GL_TEXTURE_2D, tex);
+            glBindTexture(GL_TEXTURE_2D, planetTexture.getTexture());
         }
 
         float ambient[] = {material.ambient.r, material.ambient.g, material.ambient.b};
@@ -756,79 +843,6 @@ public:
     }
 };
 
-float noise(int x, int y) {
-    int n = x + y * 57;
-    n = (n << 13) ^ n;
-    int rand1 = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
-    return (1.0f - ((float) rand1 / 1073741824.0f));
-}
-
-float smoothedNoise(float x, float y) {
-    float corners = (noise(x - 1, y - 1) + noise(x + 1, y - 1) + noise(x - 1, y + 1) + noise(x + 1, y + 1)) / 16;
-    float sides = (noise(x - 1, y) + noise(x + 1, y) + noise(x, y - 1) + noise(x, y + 1)) / 8;
-    float center = noise(x, y) / 4;
-    return corners + sides + center;
-}
-
-float interpolate(float a, float b, float x) {
-    float ft = x * PI;
-    float f = (1.0f - cosf(ft)) * 0.5f;
-    return a * (1 - f) + b * f;
-}
-
-float interpolatedNoise(float x, float y) {
-    int integer_X = int(x);
-    float fractional_X = x - integer_X;
-
-    int integer_Y = int(y);
-    float fractional_Y = y - integer_Y;
-
-    float v1 = smoothedNoise(integer_X, integer_Y);
-    float v2 = smoothedNoise(integer_X + 1, integer_Y);
-    float v3 = smoothedNoise(integer_X, integer_Y + 1);
-    float v4 = smoothedNoise(integer_X + 1, integer_Y + 1);
-
-    float i1 = interpolate(v1, v2, fractional_X);
-    float i2 = interpolate(v3, v4, fractional_X);
-
-    return interpolate(i1, i2, fractional_Y);
-}
-
-// Perlin noise elméleti hátterének és pszeudo-kódjának forrása: http://freespace.virgin.net/hugo.elias/models/m_perlin.htm
-float perlin(float x, float y, int octaves, float persistance) {
-    float total = 0;
-    float p = persistance;
-    int n = octaves - 1;
-
-    for (int i = 0; i < n; i++) {
-        float frequency = 2 * i;
-        float amplitude = p * i;
-        total = total + interpolatedNoise(x * frequency, y * frequency) * amplitude;
-    }
-    return total;
-}
-
-void createTexture() {
-    glGenTextures(1, &tex);
-
-    int textureWidth = 32;
-    int textureHeight = 32;
-    GLubyte texture_data[textureWidth * textureHeight][3];
-    for (int Y = 0; Y < textureHeight; Y++)
-        for (int X = 0; X < textureWidth; X++) {
-            float noise = perlin(X, Y, 4, 1.0f / powf(2, 5)) + 0.5f;
-            texture_data[Y * textureWidth + X][0] = (GLubyte) (255 - (unsigned) (noise * 128 * 1.5));
-            texture_data[Y * textureWidth + X][1] = (GLubyte) (255 - (unsigned) (noise * 10 * 2));
-            texture_data[Y * textureWidth + X][2] = (GLubyte) (255 - (unsigned) (noise * 255 * 2));
-        }
-
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, texture_data[0]);
-    glBindTexture(GL_TEXTURE_2D, 0);
-}
-
 void createSpace() {
     for (int Y = 0; Y < screenHeight; Y++)
         for (int X = 0; X < screenWidth; X++) {
@@ -924,7 +938,7 @@ void build() {
     sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
     light = Light0(Vector(3.5f, 4.0f, -4.5f), sunLight * 3);
 
-    rotatedSpline = RotatedSpline(stationPos, stationRotate, Vector(1,1,1), chrome);
+    rotatedSpline = RotatedSpline(stationPos, stationRotate, Vector(1, 1, 1), chrome);
 
 }
 
@@ -964,7 +978,7 @@ void drawCircle(Vector center, float radius) {
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
 void onInitialization() {
-    createTexture();
+    planetTexture.generate();
     build();
     setPerspective();
     setCamera();
