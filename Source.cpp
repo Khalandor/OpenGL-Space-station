@@ -208,8 +208,9 @@ struct Material {
 
 // diffuse, ambient, specular, shine
 const Material chrome = Material(Color(0.4, 0.4, 0.4), Color(0.25, 0.25, 0.25) * 0.4, Color(0.77, 0.77, 0.77), 0.6);
-const Material planet(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06 * 8.0, 0.06 * 8.0, 0.39 * 8.0), 80.0);
-const Material sunColor(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0);
+const Material solarPanelMaterial =  Material(Color(0.01, 0.01, 0.01), Color(0.01, 0.01, 0.01), Color(0.9, 0.9, 0.9), 0.8);
+const Material planet = Material(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), 10.0);
+const Material sunColor = Material(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0);
 Color atmosphereColor = Color(157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
 
 void glVertex(Vector const &v) {
@@ -218,6 +219,16 @@ void glVertex(Vector const &v) {
 
 void glNormal(Vector const &v) {
     glNormal3f(v.x, v.y, v.z);
+}
+
+void changeMaterial(Material newMat) {
+    float ambient[] = {newMat.ambient.r, newMat.ambient.g, newMat.ambient.b};
+    float diffuse[] = {newMat.diffuse.r, newMat.diffuse.g, newMat.diffuse.b};
+    float specular[] = {newMat.specular.r, newMat.specular.g, newMat.specular.b};
+    glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
+    glMaterialf(GL_FRONT, GL_SHININESS, newMat.shine);
 }
 
 struct ControlPoint {
@@ -466,16 +477,6 @@ class RotatedSpline {
         }
     }
 
-    void changeMaterial(Material newMat) {
-        float ambient[] = {newMat.ambient.r, newMat.ambient.g, newMat.ambient.b};
-        float diffuse[] = {newMat.diffuse.r, newMat.diffuse.g, newMat.diffuse.b};
-        float specular[] = {newMat.specular.r, newMat.specular.g, newMat.specular.b};
-        glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
-        glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
-        glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
-        glMaterialf(GL_FRONT, GL_SHININESS, newMat.shine);
-    }
-
     bool isInsideHole(Vector p1) {
         return ((p1 - holeMiddle).length() < holeRadius);
     }
@@ -641,7 +642,6 @@ public:
     Texture() {
     }
 
-
     GLuint getTexture() const {
         return tex;
     }
@@ -705,13 +705,7 @@ public:
             glBindTexture(GL_TEXTURE_2D, planetTexture.getTexture());
         }
 
-        float ambient[] = {material.ambient.r, material.ambient.g, material.ambient.b};
-        float diffuse[] = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
-        float specular[] = {material.specular.r, material.specular.g, material.specular.b};
-        glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
-        glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
-        glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
-        glMaterialf(GL_FRONT, GL_SHININESS, material.shine);
+        changeMaterial(material);
 
         const unsigned resolution = 40;
         float startU = PI / (-2.0f);
@@ -809,6 +803,81 @@ public:
     }
 };
 
+class FramedRectangle {
+    Vector pos, rotate;
+    Vector a, b, c, d;
+    Vector aInside, bInside, cInside, dInside;
+
+    void drawFrame() {
+        changeMaterial(chrome);
+        glBegin(GL_QUADS);
+        glNormal(Vector(0, 0, 1));
+        glVertex(a);
+        glNormal(Vector(0, 0, 1));
+        glVertex(b);
+        glNormal(Vector(0, 0, 1));
+        glVertex(c);
+        glNormal(Vector(0, 0, 1));
+        glVertex(d);
+        glEnd();
+    }
+
+    void drawInside() {
+        changeMaterial(solarPanelMaterial);
+        glBegin(GL_QUADS);
+        glNormal(Vector(0, 0, 1));
+        glVertex(aInside);
+        glNormal(Vector(0, 0, 1));
+        glVertex(bInside);
+        glNormal(Vector(0, 0, 1));
+        glVertex(cInside);
+        glNormal(Vector(0, 0, 1));
+        glVertex(dInside);
+        glEnd();
+    }
+
+public:
+    FramedRectangle() {
+
+    }
+
+
+    FramedRectangle(Vector const &bottomLeft, Vector const &topRight, Vector const &pos, Vector const &rotate) : pos(pos), rotate(rotate) {
+        b = bottomLeft;
+        d = topRight;
+        a = Vector(bottomLeft.x, topRight.y);
+        c = Vector(topRight.x, bottomLeft.y);
+
+        Vector ad = d - a;
+        Vector ab = b - a;
+        Vector ba = a - b;
+        Vector bc = c - b;
+        Vector cd = d - c;
+        Vector cb = b - c;
+        Vector da = a - d;
+        Vector dc = c - d;
+        float frameSize = (ad.length() + ab.length() + bc.length() + cd.length()) /4.0f / 20.0f;
+
+        aInside = a + ad.normalized() * frameSize + ab.normalized() * frameSize;
+        bInside = b + ba.normalized() * frameSize + bc.normalized() * frameSize;
+        cInside = c + cd.normalized() * frameSize + cb.normalized() * frameSize;
+        dInside = d + da.normalized() * frameSize + dc.normalized() * frameSize;
+    }
+
+    void draw() {
+        glPushMatrix();
+        glTranslatef(pos.x, pos.y, pos.z);
+        glRotatef(rotate.x, 1, 0, 0);
+        glRotatef(rotate.y, 0, 1, 0);
+        glRotatef(rotate.z, 0, 0, 1);
+
+        drawInside();
+        drawFrame();
+
+        glPopMatrix();
+    }
+};
+
 class Light0 {
     Vector pos;
     Material lightColor;
@@ -843,6 +912,7 @@ public:
     }
 };
 
+
 void createSpace() {
     for (int Y = 0; Y < screenHeight; Y++)
         for (int X = 0; X < screenWidth; X++) {
@@ -873,11 +943,6 @@ void setCamera() {
     Vector up(0, 1, 0);
     gluLookAt(eye.x, eye.y, eye.z, lookat.x, lookat.y, lookat.z, up.x, up.y, up.z);
 }
-
-RotatedSpline rotatedSpline;
-Ellipsoid sun;
-Ellipsoid earth;
-Light0 light;
 
 class Satellite {
     Vector pos;
@@ -914,19 +979,60 @@ public:
     }
 } satellite;
 
+class Station {
+    Vector pos, rotate, scale;
+    RotatedSpline rotatedSpline;
+    FramedRectangle solarPanel1;
+    FramedRectangle solarPanel2;
+
+public:
+    Station() {
+    }
+
+    Station(Vector const &pos, Vector const &rotate, Vector const &scale) : pos(pos), rotate(rotate), scale(scale) {
+        solarPanel1 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(-2.0f, 0.8f, 0.0f), Vector(-0.5, 0.0, 0.0), Vector(40.0, 0.0, 0.0));
+        solarPanel2 = FramedRectangle(Vector(-2.0f, 0.0f, 0.0f), Vector(0.0f, 0.8f, 0.0f), Vector(2.5, 0.0, 0.0), Vector(40.0, 0.0, 0.0));
+        rotatedSpline = RotatedSpline(Vector(0.0f, 0.0f, 0.0f), Vector(0.0f, 0, 90), Vector(1, 1, 1), chrome);
+    }
+
+    void draw() {
+        glPushMatrix();
+        glTranslatef(pos.x, pos.y, pos.z);
+        glRotatef(rotate.x, 1, 0, 0);
+        glRotatef(rotate.y, 0, 1, 0);
+        glRotatef(rotate.z, 0, 0, 1);
+        glScalef(scale.x, scale.y, scale.z);
+
+        rotatedSpline.draw();
+        solarPanel1.draw();
+        solarPanel2.draw();
+
+        glPopMatrix();
+    }
+
+};
+
+Ellipsoid sun;
+Ellipsoid earth;
+Station station;
+Light0 light;
+
 Vector earthCenter;
 Vector stationPos;
 Vector stationRotate;
+
 
 void build() {
     earthCenter = Vector(4.0f, 0.0f, 8.0f);
     Vector sunCenter = Vector(-3.5f, 4.0f, 4.5f);
     stationPos = Vector(-0.5f, 1.0f, 1.5f);
-    stationRotate = Vector(0.0f, 0, 70);
+    stationRotate = Vector(0.0f, 0, 20);
+
+    //(Vector bottomLeft, Vector topRight, Vector rotate, Vector pos)
 
     createSpace();
 
-    earth = Ellipsoid(5.5f, 5.0f, 5.0f, planet, earthCenter, true);
+    earth = Ellipsoid(5.0f, 5.0f, 5.0f, planet, earthCenter, true);
     satellite = Satellite(Vector(-2.0f, -0.7, 1), 0.6f);
 
     Material sunLight;
@@ -938,7 +1044,7 @@ void build() {
     sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
     light = Light0(Vector(3.5f, 4.0f, -4.5f), sunLight * 3);
 
-    rotatedSpline = RotatedSpline(stationPos, stationRotate, Vector(1, 1, 1), chrome);
+    station = Station(stationPos, stationRotate, Vector(1.0, 1.0, 1.0));
 
 }
 
@@ -987,7 +1093,7 @@ void onInitialization() {
 }
 
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
-void onDisplay() {
+void onDisplayOLD() {
     glClearColor(0.0, 0.0, 0.0, 1.0);        // torlesi szin beallitasa
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
     //debug();
@@ -1001,8 +1107,8 @@ void onDisplay() {
     sun.draw();
     light.enable();
 
-    earth.draw();
 
+    earth.draw();
     light.disable();
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1012,11 +1118,54 @@ void onDisplay() {
     light.enable();
 
     disableThrowBack();
-    rotatedSpline.draw();
     satellite.draw();
+    station.draw();
+
+    glutSwapBuffers();                    // Buffercsere: rajzolas vege
+
+}
+
+// Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
+void onDisplay() {
+    glClearColor(0.0, 0.0, 0.0, 1.0);        // torlesi szin beallitasa
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
+    //debug();
+
+
+    /*
+    drawSpace();
+    enableThrowBack();
+
+
+    light.disable();
+
+    glColor3f(sunColor.ambient.r, sunColor.ambient.g, sunColor.ambient.b);
+    //drawCircle(Vector(0.0f, 0.0f, 0.0f), 0.5);
+    sun.draw();
+    light.enable();
+
+
+
+
+    disableThrowBack();
+    */
+
+    light.enable();
+    station.draw();
+
+    /*
+    earth.draw();
+    light.disable();
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(atmosphereColor.r, atmosphereColor.g, atmosphereColor.b, 0.2f);
+    drawCircle(earthCenter + Vector(-1.6f, 0.0f, 0.0f), 2.2f);
+    glDisable(GL_BLEND);
 
     light.enable();
 
+    satellite.draw();
+    */
     glutSwapBuffers();                    // Buffercsere: rajzolas vege
 
 }
