@@ -371,15 +371,19 @@ public:
 class RotatedSpline {
     CatmullRomSpline spline;
     Material material;
+    Material darkMaterial;
     Vector pos, rotate, scale;
 
-    const static int splineRes = 60;
-    const static int circleRes = 30;
+    const static int splineRes = 100;
+    const static int circleRes = 100;
 
     float circleDelta;
     float splineDelta;
     float firstT;
     float lastT;
+
+    Vector holeMiddle;
+    float holeRadius;
 
     Vector getSurfacePoint(Vector splinePoint, float angle) {
         return Vector(splinePoint.x, splinePoint.y * cosf(angle), splinePoint.y * sinf(angle));
@@ -463,10 +467,27 @@ class RotatedSpline {
         }
     }
 
+    void changeMaterial(Material newMat){
+        float ambient[] = {newMat.ambient.r, newMat.ambient.g, newMat.ambient.b};
+        float diffuse[] = {newMat.diffuse.r, newMat.diffuse.g, newMat.diffuse.b};
+        float specular[] = {newMat.specular.r, newMat.specular.g, newMat.specular.b};
+        glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
+        glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
+        glMaterialf(GL_FRONT, GL_SHININESS, newMat.shine);
+    }
+
+    bool isInsideHole(Vector p1){
+        return ((p1 - holeMiddle).length() < holeRadius);
+    }
+
+    bool isInsideHole(Vector p1, Vector p2, Vector p3, Vector p4) {
+        return  (isInsideHole(p1) && isInsideHole(p2) && isInsideHole(p3) && isInsideHole(p4));
+    }
+
 public:
     RotatedSpline() {
     }
-
 
     RotatedSpline(Vector const &pos, Vector const &rotate, Vector const &scale, Material material)
             : pos(pos), rotate(rotate), scale(scale), material(material) {
@@ -474,27 +495,26 @@ public:
         spline.addControlPoint(Vector((35.9f - 45.85f) * 10.0f, 50.0) / 100.0f, 1.367);
         spline.addControlPoint(Vector((39.6f - 45.85f) * 10.0f, 42.4) / 100.0f, 1.853);
         spline.addControlPoint(Vector((42.8f - 45.85f) * 10.0f, 50.9) / 100.0f, 2.37);
-        spline.addControlPoint(Vector((46.3f - 45.85f) * 10.0f, 43.2) / 100.0f, 2.91);
+        spline.addControlPoint(Vector((45.85f - 45.85f) * 10.0f, 43.2) / 100.0f, 2.91);
         spline.addControlPoint(Vector((50.1f - 45.85f) * 10.0f, 50.6) / 100.0f, 3.49);
         spline.addControlPoint(Vector((53.7f - 45.85f) * 10.0f, 44.1) / 100.0f, 4.05);
         spline.addControlPoint(Vector((56.7f - 45.85f) * 10.0f, 50.5) / 100.0f, 4.64);
         spline.addControlPoint(Vector((60.7f - 45.85f) * 10.0f, 43.0) / 100.0f, 5.22);
         spline.computeV();
 
+        holeMiddle = getSurfacePoint(Vector(0.0f, 43.2) / 100.0f, -PI / 2.0f);
+        holeRadius = 0.4f;
+
         circleDelta = 2 * PI / circleRes;
         firstT = spline.getCp(0).t;
         lastT = spline.getLastCp().t;
         splineDelta = (lastT - firstT) / (float) splineRes;
+
+        darkMaterial = material * 0.01f;
     }
 
     void draw() {
-        float ambient[] = {material.ambient.r, material.ambient.g, material.ambient.b};
-        float diffuse[] = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
-        float specular[] = {material.specular.r, material.specular.g, material.specular.b};
-        glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
-        glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
-        glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
-        glMaterialf(GL_FRONT, GL_SHININESS, material.shine);
+        changeMaterial(material);
 
         glPushMatrix();
         glTranslatef(pos.x, pos.y, pos.z);
@@ -508,7 +528,6 @@ public:
             size_t prevCp = 0;
             while (spline.getCp(prevCp + 1).t < t)
                 prevCp++;
-
             Vector splineP1 = spline.getPos(t, prevCp);
             Vector splineP2 = spline.getPos(t + splineDelta, prevCp);
 
@@ -522,6 +541,10 @@ public:
                 Vector leftBottomNormal = getNormal(leftBottom, t + splineDelta, angle, splineP2);
                 Vector leftTop = getSurfacePoint(splineP2, angle + circleDelta);
                 Vector leftTopNormal = getNormal(leftTop, t + splineDelta, angle + circleDelta, splineP2);
+
+                changeMaterial(material);
+                if (isInsideHole(leftBottom, leftTop, rightBottom, rightTop))
+                    changeMaterial(darkMaterial);
 
                 glNormal(leftBottomNormal);
                 glVertex(leftBottom);
