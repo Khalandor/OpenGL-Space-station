@@ -66,7 +66,6 @@
 // Innentol modosithatod...
 
 #define PI 3.14159265359f
-#define NEAR_ZERO 0.001f
 
 //--------------------------------------------------------
 // 3D Vektor
@@ -238,29 +237,13 @@ struct ControlPoint {
 
 class Shape {
 protected:
-    static const size_t shapeResolution = 200;
     const static size_t maxControlPoints = 10;
     ControlPoint cp[maxControlPoints];
     size_t cpSize;
-    Vector shapePoints[shapeResolution + 1];
-    size_t shapePointSize;
-    Color color;
 
 public:
     Shape() {
-        shapePointSize = 0;
         cpSize = 0;
-    }
-
-    virtual void computeShape() {
-    }
-
-    virtual void drawShape() {
-        glColor3f(color.r, color.g, color.b);
-        glBegin(GL_LINE_STRIP);
-        for (size_t i = 0; i < shapePointSize; i++)
-            glVertex2f(shapePoints[i].x, shapePoints[i].y);
-        glEnd();
     }
 
     void addControlPoint(Vector p, float t) {
@@ -281,7 +264,6 @@ public:
 };
 
 class CatmullRomSpline : public Shape {
-    unsigned pointsBetweenControlPoints;
     Vector v[maxControlPoints];
     Vector startV;
     Vector endV;
@@ -326,8 +308,6 @@ public:
     CatmullRomSpline() : Shape() {
         startV = Vector(0.00001, 0.00001, 0.0);
         endV = Vector(0.00001, 0.00001, 0.0);
-        pointsBetweenControlPoints = shapeResolution / maxControlPoints;
-        color = Color(1.0f, 1.0f, 1.0f);;
     }
 
     void computeV() {
@@ -360,21 +340,6 @@ public:
                 + ai2 * pow(t - t0, 2)
                 + ai1 * (t - t0)
                 + ai0;
-    }
-
-    void computeShape() {
-        unsigned points = pointsBetweenControlPoints;
-        shapePointSize = 0;
-
-        computeV();
-        for (size_t i = 0; i < cpSize - 1; i++)
-            for (size_t j = i * points; j < (i + 1) * points; j++) {
-                float t = cp[i].t + (
-                        ((cp[i + 1].t - cp[i].t) / (float) points) * (j - (i * (float) points))
-                );
-                shapePoints[j] = getPos(t, i);
-                shapePointSize = j + 1;
-            }
     }
 };
 
