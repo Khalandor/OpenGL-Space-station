@@ -181,12 +181,6 @@ const int screenHeight = 600;
 Color space[screenWidth*screenHeight];	// egy alkalmazás ablaknyi kép
 GLuint  tex;
 
-struct ControlPoint {
-    Vector originalP;
-    Vector p;
-    float t;
-};
-
 struct Material {
     Color diffuse, ambient, specular;
     float shine;
@@ -209,12 +203,9 @@ struct Material {
 
 const Material silver(Color(0.51, 0.51, 0.51), Color(0.19, 0.19, 0.19), Color(0.51, 0.51, 0.51), 51.2);
 const Material water(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06*8.0, 0.06*8.0, 0.39*8.0), 80.0);
+//const Material water(Color(0.06, 0.06, 0.39), Color(0, 0, 0), Color(0.06*8.0, 0.06*8.0, 0.39*8.0), 80.0);
 const Material sunColor(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0);
 Color atmosphereColor = Color (157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
-
-const size_t maxControlPoints = 10;
-ControlPoint cp[maxControlPoints];
-size_t cpSize;
 
 void glVertex(Vector const &v) {
     glVertex3f(v.x, v.y, v.z);
@@ -224,9 +215,17 @@ void glNormal(Vector const &v) {
     glNormal3f(v.x, v.y, v.z);
 }
 
+struct ControlPoint {
+    Vector p;
+    float t;
+};
+
 class Shape {
 protected:
     static const size_t shapeResolution = 200;
+    const static size_t maxControlPoints = 10;
+    ControlPoint cp[maxControlPoints];
+    size_t cpSize;
     Vector shapePoints[shapeResolution + 1];
     size_t shapePointSize;
     Color color;
@@ -245,6 +244,22 @@ public:
         for (size_t i = 0; i < shapePointSize; i++)
             glVertex2f(shapePoints[i].x, shapePoints[i].y);
         glEnd();
+    }
+
+    void addControlPoint(Vector p, float t) {
+        if (cpSize < maxControlPoints) {
+            cp[cpSize].p = p;
+            cp[cpSize].t = t;
+            cpSize++;
+        }
+    }
+
+    ControlPoint getCp(size_t i) const {
+        return cp[i];
+    }
+
+    ControlPoint getLastCp() const {
+        return cp[cpSize - 1];
     }
 };
 
@@ -343,6 +358,53 @@ public:
                 shapePoints[j] = getPos(t, i);
                 shapePointSize = j + 1;
             }
+    }
+};
+
+class RotatedSpline {
+    CatmullRomSpline spline;
+    const static int splineRes = 30;
+    const static int circleRes = 10;
+    float circleDelta;
+
+public:
+    RotatedSpline(){
+        circleDelta = 2 * PI / circleRes;
+        spline.addControlPoint(Vector(0,0), 11);
+        spline.addControlPoint(Vector(0.7,0.5), 19);
+        spline.addControlPoint(Vector(1.7, 0.4), 27.3);
+        spline.addControlPoint(Vector(2.5, 0.6), 33.14);
+        spline.addControlPoint(Vector(3.0, 0), 40.36);
+        spline.computeV();
+    }
+
+    void draw(){
+        glBegin(GL_QUAD_STRIP);
+        float firstT = spline.getCp(0).t;
+        float lastT = spline.getLastCp().t;
+        float splineDelta = (lastT - firstT) / (float) splineRes;
+        for (float t = firstT; t < lastT; t+= splineDelta) {
+            size_t prevCp = 0;
+            for (size_t i = 0; spline.getCp(i).t < t; i++)
+                prevCp = i;
+
+            Vector p1 = spline.getPos(t, prevCp);
+            Vector p2 = spline.getPos(t + splineDelta, prevCp);
+
+            for (int i = 0; i <= circleRes; i++) {
+                float angle = i * circleDelta;
+                Vector rightBottom = Vector(p1.x, p1.y * cosf(angle), p1.y * sinf(angle));
+                Vector rightTop = Vector(p1.x, p1.y * cosf(angle + circleDelta), p1.y * sinf(angle + circleDelta));
+                Vector leftBottom = Vector(p2.x, p2.y * cosf(angle), p2.y * sinf(angle));
+                Vector leftTop = Vector(p2.x, p2.y * cosf(angle + circleDelta), p2.y * sinf(angle + circleDelta));
+
+                glVertex(leftBottom);
+                glVertex(rightBottom);
+                glVertex(leftTop);
+                glVertex(rightTop);
+            }
+        }
+        glEnd();
     }
 };
 
@@ -500,32 +562,6 @@ public:
             glNormal(pointOnCircle);
             glVertex(pointOnCircle);
         }
-
-        /*
-        const unsigned resolution = 40;
-        float startU = 0;
-        float startV = 0;
-        float endU = PI * 2.0f;
-        float endV = height;
-        float du = (endU - startU) / resolution;
-        float dv = (endV - startV) / resolution;
-        glBegin(GL_TRIANGLES);
-        for (float u = startU; u < endU; u += du) {
-            for (float v = startV; v < endV; v += dv) {
-                glNormal(getNormal(u, v));
-                glVertex(getSurfacePoint(u, v));
-
-                glNormal(getNormal(u + du, v));
-                glVertex(getSurfacePoint(u + du, v));
-
-                glNormal(getNormal(u + du, v + dv));
-                glVertex(getSurfacePoint(u + du, v + dv));
-
-                glNormal(getNormal(u, v + dv));
-                glVertex(getSurfacePoint(u, v + dv));
-            }
-        }
-        */
         glEnd();
         glPopMatrix();
     }
@@ -669,10 +705,10 @@ void setCamera() {
     gluLookAt(eye.x, eye.y, eye.z, lookat.x, lookat.y, lookat.z, up.x, up.y, up.z);
 }
 
+RotatedSpline rotatedSpline;
 Ellipsoid sun;
 Ellipsoid earth;
 Light0 light;
-
 
 class Satellite {
     Vector pos;
@@ -780,8 +816,9 @@ void onInitialization( ) {
 void onDisplay( ) {
     glClearColor(0.0, 0.0, 0.0, 1.0);		// torlesi szin beallitasa
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
-    //debug();
+    debug();
 
+    /*
     drawSpace();
     enableThrowBack();
     light.disable();
@@ -805,6 +842,10 @@ void onDisplay( ) {
 
     disableThrowBack();
     satellite.draw();
+    */
+
+    light.enable();
+    rotatedSpline.draw();
 
     glutSwapBuffers();     				// Buffercsere: rajzolas vege
 
