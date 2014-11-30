@@ -395,6 +395,7 @@ public:
         glTranslatef(pos.x, pos.y, pos.z);
 
         if (textured){
+            glRotatef(90.0f, 1, 0, 0);
             glEnable(GL_TEXTURE_2D);
             glBindTexture(GL_TEXTURE_2D, tex);
         }
@@ -449,6 +450,82 @@ public:
             glBindTexture(GL_TEXTURE_2D, 0);
             glDisable(GL_TEXTURE_2D);
         }
+        glPopMatrix();
+    }
+};
+
+class Cone {
+    float r, height;
+    Vector center, rotate;
+    Material material;
+
+public:
+    Cone() {
+    }
+
+    Cone(float r, float height, Vector const &center, Vector const &rotate, Material const &material)
+            : r(r), height(height), center(center), rotate(rotate), material(material) {
+    }
+
+    void draw() {
+        glPushMatrix();
+        glTranslatef(center.x, center.y, center.z);
+        glRotatef(rotate.x, 1, 0, 0);
+        glRotatef(rotate.y, 0, 1, 0);
+        glRotatef(rotate.z, 0, 0, 1);
+        glScalef(r, height, r);
+
+        float ambient[]  = {material.ambient.r, material.ambient.g, material.ambient.b};
+        float diffuse[]  = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
+        float specular[] = {material.specular.r, material.specular.g, material.specular.b};
+        glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
+        glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
+        glMaterialf(GL_FRONT, GL_SHININESS, material.shine);
+
+
+        int triangles = 30;
+        float delta = 2 * PI / triangles;
+        glBegin(GL_TRIANGLE_FAN);
+        Vector top = Vector(0, 1, 0);
+        glNormal(top);
+        glVertex(top);
+        for (int i = 0; i <= triangles; i++) {
+            Vector pointOnCircle = Vector(
+                    (r * (float) cos(i * delta)),
+                    0.0f,
+                    0.0f + (r * (float) sin(i * delta))
+            );
+            glNormal(pointOnCircle);
+            glVertex(pointOnCircle);
+        }
+
+        /*
+        const unsigned resolution = 40;
+        float startU = 0;
+        float startV = 0;
+        float endU = PI * 2.0f;
+        float endV = height;
+        float du = (endU - startU) / resolution;
+        float dv = (endV - startV) / resolution;
+        glBegin(GL_TRIANGLES);
+        for (float u = startU; u < endU; u += du) {
+            for (float v = startV; v < endV; v += dv) {
+                glNormal(getNormal(u, v));
+                glVertex(getSurfacePoint(u, v));
+
+                glNormal(getNormal(u + du, v));
+                glVertex(getSurfacePoint(u + du, v));
+
+                glNormal(getNormal(u + du, v + dv));
+                glVertex(getSurfacePoint(u + du, v + dv));
+
+                glNormal(getNormal(u, v + dv));
+                glVertex(getSurfacePoint(u, v + dv));
+            }
+        }
+        */
+        glEnd();
         glPopMatrix();
     }
 };
@@ -690,18 +767,53 @@ void setCamera() {
 
 Ellipsoid sun;
 Ellipsoid earth;
-Ellipsoid satellite;
 Light0 light;
 
-Vector earthCenter = Vector(5.0f, 0.0f, 3.0f);
-Vector sunCenter = Vector(-2.0f, 3.0f, 3.0f);
-Vector satellitePos = Vector(0.0f, 0.0f, 0.0f);
+
+class Satellite {
+    Vector pos;
+    float size;
+
+    Ellipsoid satelliteBody;
+    Cone jet1, jet2, jet3, jet4, jet5, jet6;
+
+public:
+    Satellite() {
+    }
+
+
+    Satellite(Vector const &pos, float size) : pos(pos), size(size) {
+        satelliteBody = Ellipsoid(size, size, size, silver, pos, false);
+        jet1 = Cone(size/1.5f, size, pos + Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), silver);
+        jet2 = Cone(size/1.5f, size, pos + Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), silver);
+        jet3 = Cone(size/1.5f, size, pos + Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), silver);
+        jet4 = Cone(size/1.5f, size, pos + Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), silver);
+        jet5 = Cone(size/1.5f, size, pos + Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), silver);
+        jet6 = Cone(size/1.5f, size, pos + Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), silver);
+    }
+
+    void draw(){
+        glPushMatrix();
+        satelliteBody.draw();
+        jet1.draw();
+        jet2.draw();
+        jet3.draw();
+        jet4.draw();
+        jet5.draw();
+        jet6.draw();
+        glPopMatrix();
+    }
+} satellite;
 
 void build(){
+    Vector earthCenter = Vector(4.0f, 0.0f, 8.0f);
+    Vector sunCenter = Vector(-2.0f, 3.0f, 3.0f);
+
     createSpace();
 
     //earth = Ellipsoid(1.0f*5.0f, 0.85f*8.0f, 1.0f*5.0f, water, earthCenter, true);
-    earth = Ellipsoid(5.0f, 5.0f, 5.0f, water, earthCenter, true);
+    earth = Ellipsoid(5.5f, 5.0f, 5.0f, water, earthCenter, true);
+    satellite = Satellite(Vector(-1.5, -0.3, 1), 0.6f);
 
     Material sunLight;
     sunLight.shine = 5;
@@ -712,7 +824,6 @@ void build(){
     sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
     light = Light0(Vector(2.0f, 3.0f, 3.0f), sunLight * 2.0f);
 
-    satellite = Ellipsoid(0.3f, 0.3f, 0.3f, silver, satellitePos, false);
 }
 
 void enableThrowBack() {
@@ -721,6 +832,11 @@ void enableThrowBack() {
     glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
     glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
 }
+
+void disableThrowBack() {
+    glDisable(GL_CULL_FACE);
+}
+
 void drawSpace() {
     glDisable(GL_DEPTH_TEST);
     glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, space);
@@ -821,7 +937,10 @@ void onDisplay( ) {
     //drawCircle(Vector(0.0f, 0.0f, 0.0f), 0.5);
     sun.draw();
     light.enable();
+
     earth.draw();
+
+    disableThrowBack();
     satellite.draw();
 
     glutSwapBuffers();     				// Buffercsere: rajzolas vege
