@@ -209,8 +209,8 @@ struct Material {
 // diffuse, ambient, specular, shine
 const Material chrome = Material(Color(0.4, 0.4, 0.4), Color(0.25, 0.25, 0.25) * 0.4, Color(0.77, 0.77, 0.77), 0.6);
 const Material solarPanelMaterial =  Material(Color(0.01, 0.01, 0.01), Color(0.01, 0.01, 0.01), Color(0.9, 0.9, 0.9), 0.8);
-const Material planet = Material(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), 10.0);
-const Material sunColor = Material(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0);
+const Material planet = Material(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06 * 8.0, 0.06 * 8.0, 0.39 * 8.0), 80.0);
+const Material sunColor = Material(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0) * 2.5f;
 Color atmosphereColor = Color(157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
 
 void glVertex(Vector const &v) {
@@ -1025,11 +1025,8 @@ Vector stationRotate;
 void build() {
     earthCenter = Vector(4.0f, 0.0f, 8.0f);
     Vector sunCenter = Vector(-3.5f, 4.0f, 4.5f);
-    stationPos = Vector(-0.5f, 1.0f, 1.5f);
+    stationPos = Vector(-0.5f, 1.0f, 3.0f);
     stationRotate = Vector(0.0f, 0, 20);
-
-    //(Vector bottomLeft, Vector topRight, Vector rotate, Vector pos)
-
     createSpace();
 
     earth = Ellipsoid(5.0f, 5.0f, 5.0f, planet, earthCenter, true);
@@ -1048,9 +1045,16 @@ void build() {
 
 }
 
-void enableThrowBack() {
+void enableThrowBackCW() {
     // hátsólap-eldobás
     glFrontFace(GL_CW); // Az normál irányából nézve CCW a körüljárási irány
+    glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
+    glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
+}
+
+void enableThrowBackCCW() {
+    // hátsólap-eldobás
+    glFrontFace(GL_CCW); // Az normál irányából nézve CCW a körüljárási irány
     glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
     glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
 }
@@ -1089,83 +1093,36 @@ void onInitialization() {
     setPerspective();
     setCamera();
     glShadeModel(GL_SMOOTH);
-    light.enable();
-}
-
-// Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
-void onDisplayOLD() {
-    glClearColor(0.0, 0.0, 0.0, 1.0);        // torlesi szin beallitasa
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
-    //debug();
-
-    drawSpace();
-    enableThrowBack();
-    light.disable();
-
-    glColor3f(sunColor.ambient.r, sunColor.ambient.g, sunColor.ambient.b);
-    //drawCircle(Vector(0.0f, 0.0f, 0.0f), 0.5);
-    sun.draw();
-    light.enable();
-
-
-    earth.draw();
-    light.disable();
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColor4f(atmosphereColor.r, atmosphereColor.g, atmosphereColor.b, 0.2f);
-    drawCircle(earthCenter + Vector(-1.6f, 0.0f, 0.0f), 2.2f);
-    glDisable(GL_BLEND);
-    light.enable();
-
-    disableThrowBack();
-    satellite.draw();
-    station.draw();
-
-    glutSwapBuffers();                    // Buffercsere: rajzolas vege
-
 }
 
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
 void onDisplay() {
     glClearColor(0.0, 0.0, 0.0, 1.0);        // torlesi szin beallitasa
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
+    drawSpace();
     //debug();
 
-
-    /*
-    drawSpace();
-    enableThrowBack();
-
-
-    light.disable();
-
-    glColor3f(sunColor.ambient.r, sunColor.ambient.g, sunColor.ambient.b);
-    //drawCircle(Vector(0.0f, 0.0f, 0.0f), 0.5);
-    sun.draw();
     light.enable();
 
-
-
-
-    disableThrowBack();
-    */
-
-    light.enable();
-    station.draw();
-
-    /*
     earth.draw();
+
     light.disable();
+    glDisable (GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColor4f(atmosphereColor.r, atmosphereColor.g, atmosphereColor.b, 0.2f);
+    glColor4f(atmosphereColor.r, atmosphereColor.g, atmosphereColor.b, 0.15f);
     drawCircle(earthCenter + Vector(-1.6f, 0.0f, 0.0f), 2.2f);
     glDisable(GL_BLEND);
-
+    glEnable (GL_DEPTH_TEST);
     light.enable();
 
+    station.draw();
     satellite.draw();
-    */
+
+    light.disable();
+    glColor3f(sunColor.ambient.r, sunColor.ambient.g, sunColor.ambient.b);
+    sun.draw();
+
     glutSwapBuffers();                    // Buffercsere: rajzolas vege
 
 }
