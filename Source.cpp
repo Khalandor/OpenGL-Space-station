@@ -230,6 +230,24 @@ void changeMaterial(Material newMat) {
     glMaterialf(GL_FRONT, GL_SHININESS, newMat.shine);
 }
 
+void enableThrowBackCW() {
+    // hátsólap-eldobás
+    glFrontFace(GL_CW); // Az normál irányából nézve CCW a körüljárási irány
+    glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
+    glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
+}
+
+void enableThrowBackCCW() {
+    // hátsólap-eldobás
+    glFrontFace(GL_CCW); // Az normál irányából nézve CCW a körüljárási irány
+    glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
+    glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
+}
+
+void disableThrowBack() {
+    glDisable(GL_CULL_FACE);
+}
+
 struct ControlPoint {
     Vector p;
     float t;
@@ -349,8 +367,8 @@ class RotatedSpline {
     Material darkMaterial;
     Vector pos, rotate, scale;
 
-    const static int splineRes = 100;
-    const static int circleRes = 100;
+    const static int splineRes = 200;
+    const static int circleRes = 150;
 
     float circleDelta;
     float splineDelta;
@@ -615,6 +633,7 @@ public:
 Texture planetTexture;
 
 class Ellipsoid {
+    const static unsigned resolution = 60;
     float a, b, c;
     Vector pos;
     Material material;
@@ -672,7 +691,6 @@ public:
 
         changeMaterial(material);
 
-        const unsigned resolution = 40;
         float startU = PI / (-2.0f);
         float startV = PI * (-1.0f);
         float endU = PI / 2.0f;
@@ -719,6 +737,7 @@ public:
 };
 
 class Cone {
+    static const int resolution = 30;
     float r, height;
     Vector center, rotate;
     Material material;
@@ -747,14 +766,12 @@ public:
         glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
         glMaterialf(GL_FRONT, GL_SHININESS, material.shine);
 
-
-        int triangles = 30;
-        float delta = 2 * PI / triangles;
+        float delta = 2 * PI / (float) resolution;
         glBegin(GL_TRIANGLE_FAN);
         Vector top = Vector(0, 1, 0);
         glNormal(top);
         glVertex(top);
-        for (int i = 0; i <= triangles; i++) {
+        for (int i = 0; i <= resolution; i++) {
             Vector pointOnCircle = Vector(
                     (r * (float) cos(i * delta)),
                     0.0f,
@@ -933,14 +950,18 @@ public:
 
     void draw() {
         glPushMatrix();
+        enableThrowBackCW();
         satelliteBody.draw();
+        disableThrowBack();
         jet1.draw();
         jet2.draw();
         jet3.draw();
         jet4.draw();
         jet5.draw();
         jet6.draw();
+        disableThrowBack();
         glPopMatrix();
+        disableThrowBack();
     }
 } satellite;
 
@@ -968,9 +989,13 @@ public:
         glRotatef(rotate.z, 0, 0, 1);
         glScalef(scale.x, scale.y, scale.z);
 
+        enableThrowBackCCW();
         rotatedSpline.draw();
         solarPanel1.draw();
+        disableThrowBack();
+        enableThrowBackCW();
         solarPanel2.draw();
+        disableThrowBack();
 
         glPopMatrix();
     }
@@ -1008,24 +1033,6 @@ void build() {
 
     station = Station(stationPos, stationRotate, Vector(1.0, 1.0, 1.0));
 
-}
-
-void enableThrowBackCW() {
-    // hátsólap-eldobás
-    glFrontFace(GL_CW); // Az normál irányából nézve CCW a körüljárási irány
-    glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
-    glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
-}
-
-void enableThrowBackCCW() {
-    // hátsólap-eldobás
-    glFrontFace(GL_CCW); // Az normál irányából nézve CCW a körüljárási irány
-    glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
-    glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
-}
-
-void disableThrowBack() {
-    glDisable(GL_CULL_FACE);
 }
 
 void drawSpace() {
@@ -1069,7 +1076,9 @@ void onDisplay() {
 
     light.enable();
 
+    enableThrowBackCW();
     earth.draw();
+    disableThrowBack();
 
     light.disable();
     glDisable (GL_DEPTH_TEST);
@@ -1086,7 +1095,9 @@ void onDisplay() {
 
     light.disable();
     glColor3f(sunColor.ambient.r, sunColor.ambient.g, sunColor.ambient.b);
+    enableThrowBackCW();
     sun.draw();
+    disableThrowBack();
 
     glutSwapBuffers();                    // Buffercsere: rajzolas vege
 
