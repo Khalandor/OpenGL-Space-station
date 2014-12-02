@@ -556,7 +556,7 @@ class Texture {
         return (1.0f - ((float) rand1 / 1073741824.0f));
     }
 
-    float smoothedNoise(float x, float y) {
+    float smoothedNoise(int x, int y) {
         float corners = (noise(x - 1, y - 1) + noise(x + 1, y - 1) + noise(x - 1, y + 1) + noise(x + 1, y + 1)) / 16;
         float sides = (noise(x - 1, y) + noise(x + 1, y) + noise(x, y - 1) + noise(x, y + 1)) / 8;
         float center = noise(x, y) / 4;
@@ -604,16 +604,40 @@ public:
     void generate() {
         glGenTextures(1, &tex);
 
-        int textureWidth = 32;
-        int textureHeight = 32;
+        const int textureWidth = pow(2, 10);
+        const int textureHeight = pow(2, 10);
+
         GLubyte texture_data[textureWidth * textureHeight][3];
-        for (int Y = 0; Y < textureHeight; Y++)
-            for (int X = 0; X < textureWidth; X++) {
-                float noise = perlin(X, Y, 4, 1.0f / powf(2, 5)) + 0.5f;
-                texture_data[Y * textureWidth + X][0] = (GLubyte) (255 - (unsigned) (noise * 128 * 1.5));
-                texture_data[Y * textureWidth + X][1] = (GLubyte) (255 - (unsigned) (noise * 10 * 2));
-                texture_data[Y * textureWidth + X][2] = (GLubyte) (255 - (unsigned) (noise * 255 * 2));
+        float minNoise = 1000.0f;
+        float maxNoise = -1000.0f;
+        float noiseArr[textureWidth * textureHeight];
+
+        const float noiseMapSize = 10.0f;
+        float xDelta = noiseMapSize / textureWidth;
+        float yDelta = noiseMapSize / textureHeight;
+        for (float Y = 0.0f; Y < noiseMapSize; Y += yDelta)
+            for (float X = 0.0f; X < noiseMapSize; X += xDelta) {
+                float noise = perlin(X, Y, 4, 1.0f / powf(2, 5));
+                if (noise < minNoise)
+                    minNoise = noise;
+                if (noise > maxNoise)
+                    maxNoise = noise;
+                int xIndex = (int)(X/xDelta);
+                int yIndex = (int)(Y/yDelta);
+                noiseArr[yIndex * textureWidth + xIndex] = noise;
             }
+
+        float noiseDomain = maxNoise - minNoise;
+        for (int i = 0; i < textureWidth * textureHeight; i++) {
+            float noise = noiseArr[i];
+            // skálázás [0; 1] tartományba
+            noise = (noise - minNoise) / noiseDomain;
+
+            // TODO színezés
+            texture_data[i][0] = (GLubyte) (255 - (unsigned) (noise * 128 * 1.5));
+            texture_data[i][1] = (GLubyte) (255 - (unsigned) (noise * 10 * 2));
+            texture_data[i][2] = (GLubyte) (255 - (unsigned) (noise * 255 * 2));
+        }
 
         glBindTexture(GL_TEXTURE_2D, tex);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
