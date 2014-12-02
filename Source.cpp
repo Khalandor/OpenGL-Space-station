@@ -207,7 +207,7 @@ struct Material {
 
 // diffuse, ambient, specular, shine
 const Material chrome = Material(Color(0.4, 0.4, 0.4), Color(0.25, 0.25, 0.25) * 0.4, Color(0.77, 0.77, 0.77), 0.6);
-const Material solarPanelMaterial =  Material(Color(0.01, 0.01, 0.01), Color(0.01, 0.01, 0.01), Color(0.9, 0.9, 0.9), 0.8);
+const Material solarPanelMaterial = Material(Color(0.01, 0.01, 0.01), Color(0.01, 0.01, 0.01), Color(0.9, 0.9, 0.9), 0.8);
 const Material planet = Material(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06 * 8.0, 0.06 * 8.0, 0.39 * 8.0), 80.0);
 const Material sunColor = Material(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0) * 2.5f;
 Color atmosphereColor = Color(157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
@@ -549,10 +549,9 @@ public:
 class Texture {
     const static int textureWidthPow = 10;
     const static int textureHeightPow = 10;
-    const static float continentSize = 10;
-    const static int octaves = 4;
-    const static int persistancePow = 5;
-    const static int hardness = 6;
+    const static int continentDistribution = 9;
+    const static int complexity = 6;
+    const static int hardness = 20;
 
     GLuint tex;
 
@@ -596,31 +595,22 @@ class Texture {
 
     float perlin(float x, float y) {
         float total = 0;
-        float p =  1.0f / powf(2, persistancePow);
-        int n = octaves - 1;
+        int n = complexity;
 
         for (int i = 0; i < n; i++) {
             float frequency = 2 * i;
-            float amplitude = p * i;
+            float amplitude = i;
             total = total + interpolatedNoise(x * frequency, y * frequency) * amplitude;
         }
         return total;
     }
 
-public:
-    void generate() {
-        glGenTextures(1, &tex);
-        int textureWidth = (int) pow(2, textureWidthPow);
-        int textureHeight = (int) pow(2, textureHeightPow);
-
-        GLubyte texture_data[textureWidth * textureHeight][3];
-        float noiseArr[textureWidth * textureHeight];
-
-        float noiseMapSize = continentSize;
+    void generateNoise(float noiseArr[], float &minNoise, float &maxNoise, int textureWidth, int textureHeight) {
+        float noiseMapSize = continentDistribution;
         float xDelta = noiseMapSize / textureWidth;
         float yDelta = noiseMapSize / textureHeight;
-        float minNoise = 1000.0f;
-        float maxNoise = -1000.0f;
+        minNoise = 1000.0f;
+        maxNoise = -1000.0f;
         for (float Y = 0.0f; Y < noiseMapSize; Y += yDelta)
             for (float X = 0.0f; X < noiseMapSize; X += xDelta) {
                 float noise = perlin(X, Y);
@@ -628,33 +618,49 @@ public:
                     minNoise = noise;
                 if (noise > maxNoise)
                     maxNoise = noise;
-                int xIndex = (int)(X/xDelta);
-                int yIndex = (int)(Y/yDelta);
+                int xIndex = (int) (X / xDelta);
+                int yIndex = (int) (Y / yDelta);
                 noiseArr[yIndex * textureWidth + xIndex] = noise;
             }
+    }
 
-        float noiseDomain = maxNoise - minNoise;
+    // [0, 1] tartományba skáláz
+    float scale(float value, float currentMin, float currentMax) {
+        return (value - currentMin) / (currentMax - currentMin);
+    }
+
+    // a kapott [0, 1] tartományba eső értéket eltolja a skála egyik vége felé
+    float hardenEdges(float value) {
+        //kis noise = zöld, nagy noise = kék
+        float hardnessMultiplier = 1 + ((float) hardness / 10.0f);
+        if (value > 0.5) {
+            if (value * hardnessMultiplier < 1.0f)
+                return value * hardnessMultiplier;
+            else
+                return 1.0f;
+        }
+        return value / hardnessMultiplier;
+    }
+
+public:
+    void generate() {
+        glGenTextures(1, &tex);
+        int textureWidth = (int) pow(2, textureWidthPow);
+        int textureHeight = (int) pow(2, textureHeightPow);
+        GLubyte texture_data[textureWidth * textureHeight][3];
+
+        float noiseArr[textureWidth * textureHeight];
+        float minNoise, maxNoise;
+        generateNoise(noiseArr, minNoise, maxNoise, textureWidth, textureHeight);
+
         for (int i = 0; i < textureWidth * textureHeight; i++) {
-            float noise = noiseArr[i];
-            // skálázás [0, 1] tartományba
-            noise = (noise - minNoise) / noiseDomain;
-
-            //kis noise -> zöld, nagy noise -> kék
-            float hardnessMultiplier = 1 + ((float) hardness / 10.0f);
-            if (noise > 0.5) {
-                if (noise * hardnessMultiplier < 1.0f)
-                    noise = noise * hardnessMultiplier;
-                else
-                    noise = 1.0f;
-            }
-            else {
-                noise /= hardnessMultiplier;
-            }
+            float noise = scale(noiseArr[i], minNoise, maxNoise);
+            noise = hardenEdges(noise);
 
             // skálázás [0, 255] tartományba
             noise *= 255;
 
-            // ennyi/255 -el szorozza a kéket
+            // ennyi/255 -el szorozza a bolygó színét
             texture_data[i][0] = (GLubyte) (noise);
             texture_data[i][1] = (GLubyte) (255);
             texture_data[i][2] = (GLubyte) (noise);
@@ -869,7 +875,8 @@ public:
     }
 
 
-    FramedRectangle(Vector const &bottomLeft, Vector const &topRight, Vector const &pos, Vector const &rotate) : pos(pos), rotate(rotate) {
+    FramedRectangle(Vector const &bottomLeft, Vector const &topRight, Vector const &pos, Vector const &rotate)
+            : pos(pos), rotate(rotate) {
         b = bottomLeft;
         d = topRight;
         a = Vector(bottomLeft.x, topRight.y);
@@ -883,7 +890,7 @@ public:
         Vector cb = b - c;
         Vector da = a - d;
         Vector dc = c - d;
-        float frameSize = (ad.length() + ab.length() + bc.length() + cd.length()) /4.0f / 20.0f;
+        float frameSize = (ad.length() + ab.length() + bc.length() + cd.length()) / 4.0f / 20.0f;
 
         aInside = a + ad.normalized() * frameSize + ab.normalized() * frameSize;
         bInside = b + ba.normalized() * frameSize + bc.normalized() * frameSize;
@@ -1126,13 +1133,13 @@ void onDisplay() {
     disableThrowBack();
 
     light.disable();
-    glDisable (GL_DEPTH_TEST);
+    glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glColor4f(atmosphereColor.r, atmosphereColor.g, atmosphereColor.b, 0.15f);
     drawCircle(earthCenter + Vector(-1.6f, 0.0f, 0.0f), 2.2f);
     glDisable(GL_BLEND);
-    glEnable (GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
     light.enable();
 
     station.draw();
@@ -1206,4 +1213,3 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-
