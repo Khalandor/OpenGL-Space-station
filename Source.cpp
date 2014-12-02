@@ -547,8 +547,8 @@ public:
 
 // A Perlin-zaj elméleti hátterének és pszeudo-kódjának forrása: http://freespace.virgin.net/hugo.elias/models/m_perlin.htm
 class Texture {
-    const static int textureWidthPow = 10;
-    const static int textureHeightPow = 10;
+    const static int textureWidthPow = 9;
+    const static int textureHeightPow = 9;
     const static int continentDistribution = 9;
     const static int complexity = 6;
     const static int hardness = 20;
