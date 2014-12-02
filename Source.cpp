@@ -547,6 +547,13 @@ public:
 
 // A Perlin-zaj elméleti hátterének és pszeudo-kódjának forrása: http://freespace.virgin.net/hugo.elias/models/m_perlin.htm
 class Texture {
+    const static int textureWidthPow = 10;
+    const static int textureHeightPow = 10;
+    const static float continentSize = 10;
+    const static int octaves = 4;
+    const static int persistancePow = 5;
+    const static int hardness = 6;
+
     GLuint tex;
 
     float noise(int x, int y) {
@@ -587,9 +594,9 @@ class Texture {
         return interpolate(i1, i2, fractional_Y);
     }
 
-    float perlin(float x, float y, int octaves, float persistance) {
+    float perlin(float x, float y) {
         float total = 0;
-        float p = persistance;
+        float p =  1.0f / powf(2, persistancePow);
         int n = octaves - 1;
 
         for (int i = 0; i < n; i++) {
@@ -603,21 +610,20 @@ class Texture {
 public:
     void generate() {
         glGenTextures(1, &tex);
-
-        const int textureWidth = pow(2, 10);
-        const int textureHeight = pow(2, 10);
+        int textureWidth = (int) pow(2, textureWidthPow);
+        int textureHeight = (int) pow(2, textureHeightPow);
 
         GLubyte texture_data[textureWidth * textureHeight][3];
-        float minNoise = 1000.0f;
-        float maxNoise = -1000.0f;
         float noiseArr[textureWidth * textureHeight];
 
-        const float noiseMapSize = 10.0f;
+        float noiseMapSize = continentSize;
         float xDelta = noiseMapSize / textureWidth;
         float yDelta = noiseMapSize / textureHeight;
+        float minNoise = 1000.0f;
+        float maxNoise = -1000.0f;
         for (float Y = 0.0f; Y < noiseMapSize; Y += yDelta)
             for (float X = 0.0f; X < noiseMapSize; X += xDelta) {
-                float noise = perlin(X, Y, 4, 1.0f / powf(2, 5));
+                float noise = perlin(X, Y);
                 if (noise < minNoise)
                     minNoise = noise;
                 if (noise > maxNoise)
@@ -630,13 +636,28 @@ public:
         float noiseDomain = maxNoise - minNoise;
         for (int i = 0; i < textureWidth * textureHeight; i++) {
             float noise = noiseArr[i];
-            // skálázás [0; 1] tartományba
+            // skálázás [0, 1] tartományba
             noise = (noise - minNoise) / noiseDomain;
 
-            // TODO színezés
-            texture_data[i][0] = (GLubyte) (255 - (unsigned) (noise * 128 * 1.5));
-            texture_data[i][1] = (GLubyte) (255 - (unsigned) (noise * 10 * 2));
-            texture_data[i][2] = (GLubyte) (255 - (unsigned) (noise * 255 * 2));
+            //kis noise -> zöld, nagy noise -> kék
+            float hardnessMultiplier = 1 + ((float) hardness / 10.0f);
+            if (noise > 0.5) {
+                if (noise * hardnessMultiplier < 1.0f)
+                    noise = noise * hardnessMultiplier;
+                else
+                    noise = 1.0f;
+            }
+            else {
+                noise /= hardnessMultiplier;
+            }
+
+            // skálázás [0, 255] tartományba
+            noise *= 255;
+
+            // ennyi/255 -el szorozza a kéket
+            texture_data[i][0] = (GLubyte) (noise);
+            texture_data[i][1] = (GLubyte) (255);
+            texture_data[i][2] = (GLubyte) (noise);
         }
 
         glBindTexture(GL_TEXTURE_2D, tex);
