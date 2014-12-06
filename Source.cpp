@@ -669,7 +669,7 @@ public:
         spline.addControlPoint(Vector((60.7f - 45.85f) * 10.0f, 43.0) / 100.0f, 5.22);
         spline.computeV();
 
-        holeMiddle = getSurfacePoint(Vector(0.0f, 43.2) / 100.0f, -PI / 2.0f);
+        holeMiddle = getSurfacePoint(Vector(0.0f, 43.2) / 100.0f, PI / 2.0f);
         holeRadius = 0.4f;
 
         circleDelta = 2 * PI / circleRes;
@@ -780,7 +780,9 @@ public:
         glTranslatef(pos.x, pos.y, pos.z);
 
         if (textured) {
-            glRotatef(90.0f, 1, 0, 0);
+            // szép oldal felé forgatás
+            glRotatef(180.0f, 0, 0, 1);
+            glRotatef(-90.0f, 1, 0, 0);
             glEnable(GL_TEXTURE_2D);
             glBindTexture(GL_TEXTURE_2D, texture->getTexture());
         }
@@ -933,10 +935,10 @@ public:
         Vector dc = c - d;
         float frameSize = (ad.length() + ab.length() + bc.length() + cd.length()) / 4.0f / 20.0f;
 
-        aInside = a + ad.normalized() * frameSize + ab.normalized() * frameSize;
-        bInside = b + ba.normalized() * frameSize + bc.normalized() * frameSize;
-        cInside = c + cd.normalized() * frameSize + cb.normalized() * frameSize;
-        dInside = d + da.normalized() * frameSize + dc.normalized() * frameSize;
+        aInside = a + ad.normalized() * frameSize + ab.normalized() * frameSize + Vector(0, 0, 0.01f);
+        bInside = b + ba.normalized() * frameSize + bc.normalized() * frameSize + Vector(0, 0, 0.01f);
+        cInside = c + cd.normalized() * frameSize + cb.normalized() * frameSize + Vector(0, 0, 0.01f);
+        dInside = d + da.normalized() * frameSize + dc.normalized() * frameSize + Vector(0, 0, 0.01f);
     }
 
     void draw() {
@@ -946,8 +948,8 @@ public:
         glRotatef(rotate.y, 0, 1, 0);
         glRotatef(rotate.z, 0, 0, 1);
 
-        drawInside();
         drawFrame();
+        drawInside();
 
         glPopMatrix();
     }
@@ -982,7 +984,7 @@ class Satellite : public Object {
     float size;
 
     Ellipsoid satelliteBody;
-    Cone jet1, jet2, jet3, jet4, jet5, jet6;
+    Cone jetLeft, jetRight, jetBack, jetFront, jetBottom, jetTop;
 
 public:
     Satellite() {
@@ -990,28 +992,27 @@ public:
 
     Satellite(Vector const &pos, float size) : pos(pos), size(size) {
         satelliteBody = Ellipsoid(size, size, size, chrome, pos, false);
-        jet1 = Cone(size / 1.5f, size, pos + Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), chrome);
-        jet2 = Cone(size / 1.5f, size, pos + Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), chrome);
-        jet3 = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), chrome);
-        jet4 = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), chrome);
-        jet5 = Cone(size / 1.5f, size, pos + Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), chrome);
-        jet6 = Cone(size / 1.5f, size, pos + Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), chrome);
+        jetLeft = Cone(size / 1.5f, size, pos + Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), chrome);
+        jetRight = Cone(size / 1.5f, size, pos + Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), chrome);
+        jetBack = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), chrome);
+        jetFront = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), chrome);
+        jetBottom = Cone(size / 1.5f, size, pos + Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), chrome);
+        jetTop = Cone(size / 1.5f, size, pos + Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), chrome);
     }
 
     void draw() {
         glPushMatrix();
         enableThrowBackCW();
         satelliteBody.draw();
-        disableThrowBack();
-        jet1.draw();
-        jet2.draw();
-        jet3.draw();
-        jet4.draw();
-        jet5.draw();
-        jet6.draw();
+        jetLeft.draw();
+        jetRight.draw();
+        jetTop.draw();
+        jetBottom.draw();
+        jetBack.draw();
+        enableThrowBackCCW();
+        jetFront.draw();
         disableThrowBack();
         glPopMatrix();
-        disableThrowBack();
     }
 };
 
@@ -1025,12 +1026,10 @@ public:
     Station() {
     }
 
-    Station(Vector const &_pos, Vector const &_rotate, Vector const &_scale) {
-        pos = _pos;
-        rotate = _rotate;
-        scale = _scale;
-        solarPanel1 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(-2.0f, 0.8f, 0.0f), Vector(-0.5, 0.0, 0.0), Vector(40.0, 0.0, 0.0));
-        solarPanel2 = FramedRectangle(Vector(-2.0f, 0.0f, 0.0f), Vector(0.0f, 0.8f, 0.0f), Vector(2.5, 0.0, 0.0), Vector(40.0, 0.0, 0.0));
+    Station(Vector const &pos, Vector const &rotate, Vector const &scale) : pos(pos), rotate(rotate), scale(scale) {
+        //Vector const &bottomLeft, Vector const &topRight, Vector const &pos, Vector const &rotate)
+        solarPanel1 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(0.5, 0.0, 0.0), Vector(40.0, 0.0, 0.0));
+        solarPanel2 = FramedRectangle(Vector(2.0f, 0.0f, 0.0f), Vector(0.0f, 0.8f, 0.0f), Vector(-2.5, 0.0, 0.0), Vector(40.0, 0.0, 0.0));
         rotatedSpline = RotatedSpline(Vector(0.0f, 0.0f, 0.0f), Vector(0.0f, 0, 90), Vector(1, 1, 1), chrome);
     }
 
@@ -1045,7 +1044,6 @@ public:
         enableThrowBackCCW();
         rotatedSpline.draw();
         solarPanel1.draw();
-        disableThrowBack();
         enableThrowBackCW();
         solarPanel2.draw();
         disableThrowBack();
@@ -1187,7 +1185,7 @@ class Scene {
     Space space;
 
     void createCamera() {
-        Vector eye(0.0f, 0.0f, -6.0f);
+        Vector eye(0.0f, 0.0f, 6.0f);
         Vector lookat(0.0f, 0.0f, 0.0f);
         Vector up(0, 1, 0);
         float zNear = 0.1;
@@ -1202,13 +1200,13 @@ public:
         createCamera();
         planetTexture.setOGL();
 
-        earthCenter = Vector(4.0f, 0.0f, 8.0f);
-        Vector sunCenter = Vector(-3.5f, 4.0f, 4.5f);
-        stationPos = Vector(-0.5f, 1.0f, 3.0f);
+        earthCenter = Vector(-4.0f, 0.0f, -8.0f);
+        Vector sunCenter = Vector(3.5f, 4.0f, -4.5f);
+        stationPos = Vector(0.5f, 1.0f, -3.0f);
         stationRotate = Vector(0.0f, 0, 20);
-        satellitePos = Vector(-2.0f, -0.7, 1);
+        satellitePos = Vector(2.0f, -0.7, -1);
 
-        light = new Light(0, Vector(-3.5f, 4.0f, 4.5f), sunLight, false);
+        light = new Light(0, Vector(3.5f, 4.0f, -4.5f), sunLight, false);
 
         earth = Ellipsoid(5.0f, 5.0f, 5.0f, planet, earthCenter, true);
         earth.setTexture(&planetTexture);
@@ -1219,9 +1217,10 @@ public:
     };
 
     void render() {
+        disableThrowBack();
         space.draw();
-
         light->enable();
+
         enableThrowBackCW();
         earth.draw();
         disableThrowBack();
@@ -1231,7 +1230,7 @@ public:
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glColor4f(atmosphereColor.r, atmosphereColor.g, atmosphereColor.b, 0.15f);
-        drawCircle(earthCenter + Vector(-1.6f, 0.0f, 0.0f), 2.2f);
+        drawCircle(earthCenter + Vector(1.6f, 0.0f, 0.0f), 2.2f);
         glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
         light->enable();
@@ -1243,7 +1242,6 @@ public:
         glColor3f(sunColor.getAmbient().r, sunColor.getAmbient().g, sunColor.getAmbient().b);
         enableThrowBackCW();
         sun.draw();
-        disableThrowBack();
     };
 
     void generateTextures() {
