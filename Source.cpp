@@ -188,7 +188,6 @@ struct Color {
 
 const int screenWidth = 600;    // alkalmazás ablak felbontása
 const int screenHeight = 600;
-Color space[screenWidth * screenHeight];    // egy alkalmazás ablaknyi kép
 
 class Material {
     Color diffuse, ambient, specular;
@@ -277,27 +276,27 @@ class PlanetTexture : public Texture {
     const static int complexity = 6;
     const static int hardness = 20;
 
-    float noise(int x, int y) {
+    float noise(int x, int y) const {
         int n = x + y * 57;
         n = (n << 13) ^ n;
         int rand1 = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
         return (1.0f - ((float) rand1 / 1073741824.0f));
     }
 
-    float smoothedNoise(int x, int y) {
+    float smoothedNoise(int x, int y) const {
         float corners = (noise(x - 1, y - 1) + noise(x + 1, y - 1) + noise(x - 1, y + 1) + noise(x + 1, y + 1)) / 16;
         float sides = (noise(x - 1, y) + noise(x + 1, y) + noise(x, y - 1) + noise(x, y + 1)) / 8;
         float center = noise(x, y) / 4;
         return corners + sides + center;
     }
 
-    float interpolate(float a, float b, float x) {
+    float interpolate(float a, float b, float x) const {
         float ft = x * PI;
         float f = (1.0f - cosf(ft)) * 0.5f;
         return a * (1 - f) + b * f;
     }
 
-    float interpolatedNoise(float x, float y) {
+    float interpolatedNoise(float x, float y) const {
         int integer_X = int(x);
         float fractional_X = x - integer_X;
 
@@ -315,7 +314,7 @@ class PlanetTexture : public Texture {
         return interpolate(i1, i2, fractional_Y);
     }
 
-    float perlin(float x, float y) {
+    float perlin(float x, float y) const {
         float total = 0;
         int n = complexity;
 
@@ -327,7 +326,7 @@ class PlanetTexture : public Texture {
         return total;
     }
 
-    void generateNoise(float noiseArr[], float &minNoise, float &maxNoise, int textureWidth, int textureHeight) {
+    void generateNoise(float noiseArr[], float &minNoise, float &maxNoise, int textureWidth, int textureHeight) const {
         float noiseMapSize = continentDistribution;
         float xDelta = noiseMapSize / textureWidth;
         float yDelta = noiseMapSize / textureHeight;
@@ -347,12 +346,12 @@ class PlanetTexture : public Texture {
     }
 
     // [0, 1] tartományba skáláz
-    float scale(float value, float currentMin, float currentMax) {
+    float scale(float value, float currentMin, float currentMax) const {
         return (value - currentMin) / (currentMax - currentMin);
     }
 
     // a kapott [0, 1] tartományba eső értéket eltolja a skála egyik vége felé
-    float hardenEdges(float value) {
+    float hardenEdges(float value) const {
         //kis noise = zöld, nagy noise = kék
         float hardnessMultiplier = 1 + ((float) hardness / 10.0f);
         if (value > 0.5) {
@@ -954,6 +953,30 @@ public:
     }
 };
 
+class Space : public Object {
+    Color space[screenWidth * screenHeight];
+public:
+    Space() {
+    }
+
+    void generate() {
+        for (int Y = 0; Y < screenHeight; Y++)
+            for (int X = 0; X < screenWidth; X++) {
+                int current = Y * screenWidth + X;
+                if ((current % 184) == (Y * X % 211))
+                    space[current] = Color(1.0f, 1.0f, 1.0f);
+                else
+                    space[current] = Color(0.0f, 0.0f, 0.0f);
+            }
+    }
+
+    void draw() {
+        glDisable(GL_DEPTH_TEST);
+        glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, space);
+        glEnable(GL_DEPTH_TEST);
+    }
+};
+
 class Satellite : public Object {
     Vector pos;
     float size;
@@ -1101,23 +1124,6 @@ public:
     }
 };
 
-void createSpace() {
-    for (int Y = 0; Y < screenHeight; Y++)
-        for (int X = 0; X < screenWidth; X++) {
-            int current = Y * screenWidth + X;
-            if ((current % 184) == (Y * X % 211))
-                space[current] = Color(1.0f, 1.0f, 1.0f);
-            else
-                space[current] = Color(0.0f, 0.0f, 0.0f);
-        }
-}
-
-void drawSpace() {
-    glDisable(GL_DEPTH_TEST);
-    glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, space);
-    glEnable(GL_DEPTH_TEST);
-}
-
 void drawCircle(Vector center, float radius) {
     int triangles = 30;
     float delta = 2 * PI / triangles;
@@ -1177,6 +1183,8 @@ class Scene {
     Ellipsoid sun;
     Satellite satellite;
     Station station;
+    PlanetTexture planetTexture;
+    Space space;
 
     void createCamera() {
         Vector eye(0.0f, 0.0f, -6.0f);
@@ -1192,8 +1200,6 @@ class Scene {
 public:
     void build() {
         createCamera();
-        PlanetTexture planetTexture;
-        planetTexture.generate();
         planetTexture.setOGL();
 
         earthCenter = Vector(4.0f, 0.0f, 8.0f);
@@ -1201,8 +1207,6 @@ public:
         stationPos = Vector(-0.5f, 1.0f, 3.0f);
         stationRotate = Vector(0.0f, 0, 20);
         satellitePos = Vector(-2.0f, -0.7, 1);
-
-        createSpace();
 
         light = new Light(0, Vector(-3.5f, 4.0f, 4.5f), sunLight, false);
 
@@ -1215,6 +1219,8 @@ public:
     };
 
     void render() {
+        space.draw();
+
         light->enable();
         enableThrowBackCW();
         earth.draw();
@@ -1239,10 +1245,16 @@ public:
         sun.draw();
         disableThrowBack();
     };
+
+    void generateTextures() {
+        planetTexture.generate();
+        space.generate();
+    }
 } scene;
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
 void onInitialization() {
+    scene.generateTextures();
     scene.build();
     glShadeModel(GL_SMOOTH);
 }
@@ -1251,10 +1263,9 @@ void onInitialization() {
 void onDisplay() {
     glClearColor(0.0, 0.0, 0.0, 1.0);        // torlesi szin beallitasa
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
-    drawSpace();
+
     //debug();
     scene.render();
-
 
 
     glutSwapBuffers();                    // Buffercsere: rajzolas vege
