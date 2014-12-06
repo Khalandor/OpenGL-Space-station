@@ -238,10 +238,10 @@ public:
 
 // diffuse, ambient, specular, shine
 const Material chrome = Material(Color(0.4, 0.4, 0.4), Color(0.25, 0.25, 0.25) * 0.4, Color(0.77, 0.77, 0.77), 0.6);
-const Material solarPanelMaterial = Material(Color(0.01, 0.01, 0.01), Color(0.01, 0.01, 0.01), Color(0.9, 0.9, 0.9), 0.8);
+const Material solarPanelMaterial = Material(Color(0.01, 0.01, 0.01), Color(0.01, 0.01, 0.01), Color(0.1, 0.1, 0.1), 0.8);
 const Material planet = Material(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06 * 8.0, 0.06 * 8.0, 0.39 * 8.0), 80.0);
 const Material sunColor = Material(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0) * 2.5f;
-const Material sunLight = Material(Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), 1.0) * 0.7f;
+const Material sunLight = Material(Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), 1.0) * 0.5f;
 Color atmosphereColor = Color(157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
 
 class Texture {
@@ -730,7 +730,7 @@ public:
 };
 
 class Ellipsoid : public Object {
-    const static unsigned resolution = 60;
+    const static unsigned resolution = 70;
     float a, b, c;
     Vector pos;
     bool textured;
@@ -1028,8 +1028,8 @@ public:
 
     Station(Vector const &pos, Vector const &rotate, Vector const &scale) : pos(pos), rotate(rotate), scale(scale) {
         //Vector const &bottomLeft, Vector const &topRight, Vector const &pos, Vector const &rotate)
-        solarPanel1 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(0.5, 0.0, 0.0), Vector(40.0, 0.0, 0.0));
-        solarPanel2 = FramedRectangle(Vector(2.0f, 0.0f, 0.0f), Vector(0.0f, 0.8f, 0.0f), Vector(-2.5, 0.0, 0.0), Vector(40.0, 0.0, 0.0));
+        solarPanel1 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(0.5, 0.0, 0.0), Vector(-20.0, 0.0, 0.0));
+        solarPanel2 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(-2.5, 0.0, 0.0), Vector(-20.0, 0.0, 0.0));
         rotatedSpline = RotatedSpline(Vector(0.0f, 0.0f, 0.0f), Vector(0.0f, 0, 90), Vector(1, 1, 1), chrome);
     }
 
@@ -1044,7 +1044,6 @@ public:
         enableThrowBackCCW();
         rotatedSpline.draw();
         solarPanel1.draw();
-        enableThrowBackCW();
         solarPanel2.draw();
         disableThrowBack();
 
@@ -1201,12 +1200,12 @@ public:
         planetTexture.setOGL();
 
         earthCenter = Vector(-4.0f, 0.0f, -8.0f);
-        Vector sunCenter = Vector(3.5f, 4.0f, -4.5f);
+        Vector sunCenter = Vector(3.5f, 4.0f, 4.5f);
         stationPos = Vector(0.5f, 1.0f, -3.0f);
         stationRotate = Vector(0.0f, 0, 20);
         satellitePos = Vector(2.0f, -0.7, -1);
 
-        light = new Light(0, Vector(3.5f, 4.0f, -4.5f), sunLight, false);
+        light = new Light(0, sunCenter, sunLight, false);
 
         earth = Ellipsoid(5.0f, 5.0f, 5.0f, planet, earthCenter, true);
         earth.setTexture(&planetTexture);
