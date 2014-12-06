@@ -471,15 +471,15 @@ class CatmullRomSpline : public Shape {
     Vector startV;
     Vector endV;
 
-    Vector a0(size_t prev) {
+    Vector a0(size_t prev) const {
         return cp[prev].p;
     }
 
-    Vector a1(size_t prev) {
+    Vector a1(size_t prev) const {
         return v[prev];
     }
 
-    Vector a2(size_t prev) {
+    Vector a2(size_t prev) const {
         size_t i = prev;
         Vector p0 = cp[i].p;
         Vector p1 = cp[i + 1].p;
@@ -493,7 +493,7 @@ class CatmullRomSpline : public Shape {
         return tag1 - tag2;
     }
 
-    Vector a3(size_t prev) {
+    Vector a3(size_t prev) const {
         size_t i = prev;
         Vector p0 = cp[i].p;
         Vector p1 = cp[i + 1].p;
@@ -530,7 +530,7 @@ public:
         }
     }
 
-    Vector getPos(float t, size_t prevIndex) {
+    Vector getPos(float t, size_t prevIndex) const {
         size_t i = prevIndex;
         Vector ai0 = a0(i);
         Vector ai1 = a1(i);
@@ -562,11 +562,11 @@ class RotatedSpline : public Object {
     Vector holeMiddle;
     float holeRadius;
 
-    Vector getSurfacePoint(Vector splinePoint, float angle) {
+    Vector getSurfacePoint(Vector splinePoint, float angle) const {
         return Vector(splinePoint.x, splinePoint.y * cosf(angle), splinePoint.y * sinf(angle));
     }
 
-    Vector getNormal(Vector currentP, float t, float angle, Vector currentSplineP) {
+    Vector getNormal(Vector currentP, float t, float angle, Vector currentSplineP) const {
         // currentP-hez képest a körön előző pont
         Vector prevSurfacePointCircle = getSurfacePoint(currentSplineP, angle - circleDelta);
 
@@ -644,11 +644,11 @@ class RotatedSpline : public Object {
         }
     }
 
-    bool isInsideHole(Vector p1) {
+    bool isInsideHole(Vector p1) const {
         return ((p1 - holeMiddle).length() < holeRadius);
     }
 
-    bool isInsideHole(Vector p1, Vector p2, Vector p3, Vector p4) {
+    bool areInsideHole(Vector p1, Vector p2, Vector p3, Vector p4) const {
         return (isInsideHole(p1) && isInsideHole(p2) && isInsideHole(p3) && isInsideHole(p4));
     }
 
@@ -710,7 +710,7 @@ public:
                 Vector leftTopNormal = getNormal(leftTop, t + splineDelta, angle + circleDelta, splineP2);
 
                 material.setOGL();
-                if (isInsideHole(leftBottom, leftTop, rightBottom, rightTop))
+                if (areInsideHole(leftBottom, leftTop, rightBottom, rightTop))
                     darkMaterial.setOGL();
 
                 glNormal(leftBottomNormal);
@@ -735,7 +735,7 @@ class Ellipsoid : public Object {
     Vector pos;
     bool textured;
 
-    Vector getFirstPartialDerivative(float u, float v) {
+    Vector getFirstPartialDerivative(float u, float v) const {
         return Vector(
                 a * (-1.0f * sinf(u)) * cosf(v),
                 b * (-1.0f * sinf(u)) * sinf(v),
@@ -743,7 +743,7 @@ class Ellipsoid : public Object {
         );
     }
 
-    Vector getSecondPartialDerivative(float u, float v) {
+    Vector getSecondPartialDerivative(float u, float v) const {
         return Vector(
                 a * cosf(u) * (-1.0f * sinf(v)),
                 b * cosf(u) * cosf(v),
@@ -751,7 +751,7 @@ class Ellipsoid : public Object {
         );
     }
 
-    Vector getSurfacePoint(float u, float v) {
+    Vector getSurfacePoint(float u, float v) const {
         return Vector(
                 a * cosf(u) * cosf(v),
                 b * cosf(u) * sinf(v),
@@ -759,7 +759,7 @@ class Ellipsoid : public Object {
         );
     }
 
-    Vector getNormal(float u, float v) {
+    Vector getNormal(float u, float v) const {
         if (PI / (-2.0f) < u && u < PI / 2.0f)
             return (getSecondPartialDerivative(u, v) % getFirstPartialDerivative(u, v)).normalized();
         if (PI / (-2.0f) >= u)
