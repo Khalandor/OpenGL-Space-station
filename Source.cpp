@@ -1167,10 +1167,13 @@ public:
     }
 };
 
-Vector earthCenter;
-Vector stationPos;
-Vector stationRotate;
+// station pos forgás
+// lookat, eye
+// satellite pos
+Vector stationPos, stationRotate;
 Vector satellitePos;
+Vector lookat, eye;
+
 
 class Scene {
     Light *light;
@@ -1183,9 +1186,11 @@ class Scene {
     PlanetTexture planetTexture;
     Space space;
 
+    Vector earthCenter, sunCenter;
+
     void createCamera() {
-        Vector eye(0.0f, 0.0f, 6.0f);
-        Vector lookat(0.0f, 0.0f, 0.0f);
+        eye = Vector(0.0f, 0.0f, 6.0f);
+        lookat = Vector(0.0f, 0.0f, 0.0f);
         Vector up(0, 1, 0);
         float zNear = 0.1;
         float zFar = 10;
@@ -1200,7 +1205,7 @@ public:
         planetTexture.setOGL();
 
         earthCenter = Vector(-4.0f, 0.0f, -8.0f);
-        Vector sunCenter = Vector(3.5f, 4.0f, 4.5f);
+        sunCenter = Vector(3.5f, 4.0f, 4.5f);
         stationPos = Vector(0.5f, 1.0f, -3.0f);
         stationRotate = Vector(0.0f, 0, 20);
         satellitePos = Vector(2.0f, -0.7, -1);
@@ -1254,17 +1259,14 @@ void onInitialization() {
     scene.generateTextures();
     scene.build();
     glShadeModel(GL_SMOOTH);
+    //debug();
 }
 
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
 void onDisplay() {
     glClearColor(0.0, 0.0, 0.0, 1.0);        // torlesi szin beallitasa
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
-
-    //debug();
     scene.render();
-
-
     glutSwapBuffers();                    // Buffercsere: rajzolas vege
 
 }
