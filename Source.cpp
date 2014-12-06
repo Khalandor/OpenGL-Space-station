@@ -178,30 +178,62 @@ struct Color {
         b *= c.b;
         return *this;
     }
+
+    void asArray(float array[]) const {
+        array[0] = r;
+        array[1] = g;
+        array[2] = b;
+    }
 };
 
 const int screenWidth = 600;    // alkalmazás ablak felbontása
 const int screenHeight = 600;
 Color space[screenWidth * screenHeight];    // egy alkalmazás ablaknyi kép
 
-struct Material {
+class Material {
     Color diffuse, ambient, specular;
+    float ambientArr[3];
+    float diffuseArr[3];
+    float specularArr[3];
     float shine;
 
+public:
     Material() {
     };
 
     Material(Color const &diffuse, Color const &ambient, Color const &specular, float shine)
             : diffuse(diffuse), ambient(ambient), specular(specular), shine(shine) {
+        ambient.asArray(ambientArr);
+        diffuse.asArray(diffuseArr);
+        specular.asArray(specularArr);
     }
 
     Material operator*(float a) const {
-        Material m;
-        m.ambient = ambient * a;
-        m.diffuse = diffuse * a;
-        m.shine = shine * a;
-        m.specular = specular * a;
+        Material m = Material(diffuse * a, ambient * a, specular * a, shine * a);
         return m;
+    }
+
+    void setOGL() {
+        glMaterialfv(GL_FRONT, GL_AMBIENT, ambientArr);
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuseArr);
+        glMaterialfv(GL_FRONT, GL_SPECULAR, specularArr);
+        glMaterialf(GL_FRONT, GL_SHININESS, shine);
+    }
+
+    Color const &getDiffuse() const {
+        return diffuse;
+    }
+
+    Color const &getAmbient() const {
+        return ambient;
+    }
+
+    Color const &getSpecular() const {
+        return specular;
+    }
+
+    float getShine() const {
+        return shine;
     }
 };
 
@@ -210,7 +242,151 @@ const Material chrome = Material(Color(0.4, 0.4, 0.4), Color(0.25, 0.25, 0.25) *
 const Material solarPanelMaterial = Material(Color(0.01, 0.01, 0.01), Color(0.01, 0.01, 0.01), Color(0.9, 0.9, 0.9), 0.8);
 const Material planet = Material(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06 * 8.0, 0.06 * 8.0, 0.39 * 8.0), 80.0);
 const Material sunColor = Material(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0) * 2.5f;
+const Material sunLight = Material(Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), 1.0) * 0.7f;
 Color atmosphereColor = Color(157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
+
+class Texture {
+protected:
+    GLuint tex;
+    const static int textureWidth = 1024;
+    const static int textureHeight = 1024;
+    GLubyte texture_data[textureWidth * textureHeight][3];
+
+public:
+    Texture() {
+    }
+
+    void setOGL() {
+        glGenTextures(1, &tex);
+
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, texture_data[0]);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    GLuint getTexture() const {
+        return tex;
+    }
+};
+
+// A Perlin-zaj elméleti hátterének és pszeudo-kódjának forrása: http://freespace.virgin.net/hugo.elias/models/m_perlin.htm
+class PlanetTexture : public Texture {
+    const static int continentDistribution = 9;
+    const static int complexity = 6;
+    const static int hardness = 20;
+
+    float noise(int x, int y) {
+        int n = x + y * 57;
+        n = (n << 13) ^ n;
+        int rand1 = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
+        return (1.0f - ((float) rand1 / 1073741824.0f));
+    }
+
+    float smoothedNoise(int x, int y) {
+        float corners = (noise(x - 1, y - 1) + noise(x + 1, y - 1) + noise(x - 1, y + 1) + noise(x + 1, y + 1)) / 16;
+        float sides = (noise(x - 1, y) + noise(x + 1, y) + noise(x, y - 1) + noise(x, y + 1)) / 8;
+        float center = noise(x, y) / 4;
+        return corners + sides + center;
+    }
+
+    float interpolate(float a, float b, float x) {
+        float ft = x * PI;
+        float f = (1.0f - cosf(ft)) * 0.5f;
+        return a * (1 - f) + b * f;
+    }
+
+    float interpolatedNoise(float x, float y) {
+        int integer_X = int(x);
+        float fractional_X = x - integer_X;
+
+        int integer_Y = int(y);
+        float fractional_Y = y - integer_Y;
+
+        float v1 = smoothedNoise(integer_X, integer_Y);
+        float v2 = smoothedNoise(integer_X + 1, integer_Y);
+        float v3 = smoothedNoise(integer_X, integer_Y + 1);
+        float v4 = smoothedNoise(integer_X + 1, integer_Y + 1);
+
+        float i1 = interpolate(v1, v2, fractional_X);
+        float i2 = interpolate(v3, v4, fractional_X);
+
+        return interpolate(i1, i2, fractional_Y);
+    }
+
+    float perlin(float x, float y) {
+        float total = 0;
+        int n = complexity;
+
+        for (int i = 0; i < n; i++) {
+            float frequency = 2 * i;
+            float amplitude = i;
+            total = total + interpolatedNoise(x * frequency, y * frequency) * amplitude;
+        }
+        return total;
+    }
+
+    void generateNoise(float noiseArr[], float &minNoise, float &maxNoise, int textureWidth, int textureHeight) {
+        float noiseMapSize = continentDistribution;
+        float xDelta = noiseMapSize / textureWidth;
+        float yDelta = noiseMapSize / textureHeight;
+        minNoise = 1000.0f;
+        maxNoise = -1000.0f;
+        for (float Y = 0.0f; Y < noiseMapSize; Y += yDelta)
+            for (float X = 0.0f; X < noiseMapSize; X += xDelta) {
+                float noise = perlin(X, Y);
+                if (noise < minNoise)
+                    minNoise = noise;
+                if (noise > maxNoise)
+                    maxNoise = noise;
+                int xIndex = (int) (X / xDelta);
+                int yIndex = (int) (Y / yDelta);
+                noiseArr[yIndex * textureWidth + xIndex] = noise;
+            }
+    }
+
+    // [0, 1] tartományba skáláz
+    float scale(float value, float currentMin, float currentMax) {
+        return (value - currentMin) / (currentMax - currentMin);
+    }
+
+    // a kapott [0, 1] tartományba eső értéket eltolja a skála egyik vége felé
+    float hardenEdges(float value) {
+        //kis noise = zöld, nagy noise = kék
+        float hardnessMultiplier = 1 + ((float) hardness / 10.0f);
+        if (value > 0.5) {
+            if (value * hardnessMultiplier < 1.0f)
+                return value * hardnessMultiplier;
+            else
+                return 1.0f;
+        }
+        return value / hardnessMultiplier;
+    }
+
+public:
+    void generate() {
+        float noiseArr[textureWidth * textureHeight];
+        float minNoise, maxNoise;
+        generateNoise(noiseArr, minNoise, maxNoise, textureWidth, textureHeight);
+
+        for (int i = 0; i < textureWidth * textureHeight; i++) {
+            float noise = scale(noiseArr[i], minNoise, maxNoise);
+            noise = hardenEdges(noise);
+
+            // skálázás [0, 255] tartományba
+            noise *= 255;
+
+            // ennyi/255 -el szorozza a bolygó színét
+            texture_data[i][0] = (GLubyte) (noise);
+            texture_data[i][1] = (GLubyte) (255);
+            texture_data[i][2] = (GLubyte) (noise);
+        }
+    }
+
+    PlanetTexture() {
+    }
+};
 
 void glVertex(Vector const &v) {
     glVertex3f(v.x, v.y, v.z);
@@ -218,16 +394,6 @@ void glVertex(Vector const &v) {
 
 void glNormal(Vector const &v) {
     glNormal3f(v.x, v.y, v.z);
-}
-
-void changeMaterial(Material newMat) {
-    float ambient[] = {newMat.ambient.r, newMat.ambient.g, newMat.ambient.b};
-    float diffuse[] = {newMat.diffuse.r, newMat.diffuse.g, newMat.diffuse.b};
-    float specular[] = {newMat.specular.r, newMat.specular.g, newMat.specular.b};
-    glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
-    glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
-    glMaterialf(GL_FRONT, GL_SHININESS, newMat.shine);
 }
 
 void enableThrowBackCW() {
@@ -247,6 +413,26 @@ void enableThrowBackCCW() {
 void disableThrowBack() {
     glDisable(GL_CULL_FACE);
 }
+
+class Object {
+protected:
+    Material material;
+    Texture *texture;
+
+public :
+    virtual void draw() = 0;
+
+
+    Object() {
+    }
+
+    Object(Material const &material) : material(material) {
+    }
+
+    void setTexture(Texture *texture) {
+        Object::texture = texture;
+    }
+};
 
 struct ControlPoint {
     Vector p;
@@ -361,9 +547,8 @@ public:
     }
 };
 
-class RotatedSpline {
+class RotatedSpline : public Object {
     CatmullRomSpline spline;
-    Material material;
     Material darkMaterial;
     Vector pos, rotate, scale;
 
@@ -473,7 +658,7 @@ public:
     }
 
     RotatedSpline(Vector const &pos, Vector const &rotate, Vector const &scale, Material material)
-            : pos(pos), rotate(rotate), scale(scale), material(material) {
+            : Object(material), pos(pos), rotate(rotate), scale(scale) {
         spline.addControlPoint(Vector((31.0f - 45.85f) * 10.0f, 42.6) / 100.0f, 0.863);
         spline.addControlPoint(Vector((35.9f - 45.85f) * 10.0f, 50.0) / 100.0f, 1.367);
         spline.addControlPoint(Vector((39.6f - 45.85f) * 10.0f, 42.4) / 100.0f, 1.853);
@@ -497,7 +682,7 @@ public:
     }
 
     void draw() {
-        changeMaterial(material);
+        material.setOGL();
 
         glPushMatrix();
         glTranslatef(pos.x, pos.y, pos.z);
@@ -525,9 +710,9 @@ public:
                 Vector leftTop = getSurfacePoint(splineP2, angle + circleDelta);
                 Vector leftTopNormal = getNormal(leftTop, t + splineDelta, angle + circleDelta, splineP2);
 
-                changeMaterial(material);
+                material.setOGL();
                 if (isInsideHole(leftBottom, leftTop, rightBottom, rightTop))
-                    changeMaterial(darkMaterial);
+                    darkMaterial.setOGL();
 
                 glNormal(leftBottomNormal);
                 glVertex(leftBottom);
@@ -545,149 +730,10 @@ public:
     }
 };
 
-// A Perlin-zaj elméleti hátterének és pszeudo-kódjának forrása: http://freespace.virgin.net/hugo.elias/models/m_perlin.htm
-class Texture {
-    const static int textureWidthPow = 9;
-    const static int textureHeightPow = 9;
-    const static int continentDistribution = 9;
-    const static int complexity = 6;
-    const static int hardness = 20;
-
-    GLuint tex;
-
-    float noise(int x, int y) {
-        int n = x + y * 57;
-        n = (n << 13) ^ n;
-        int rand1 = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
-        return (1.0f - ((float) rand1 / 1073741824.0f));
-    }
-
-    float smoothedNoise(int x, int y) {
-        float corners = (noise(x - 1, y - 1) + noise(x + 1, y - 1) + noise(x - 1, y + 1) + noise(x + 1, y + 1)) / 16;
-        float sides = (noise(x - 1, y) + noise(x + 1, y) + noise(x, y - 1) + noise(x, y + 1)) / 8;
-        float center = noise(x, y) / 4;
-        return corners + sides + center;
-    }
-
-    float interpolate(float a, float b, float x) {
-        float ft = x * PI;
-        float f = (1.0f - cosf(ft)) * 0.5f;
-        return a * (1 - f) + b * f;
-    }
-
-    float interpolatedNoise(float x, float y) {
-        int integer_X = int(x);
-        float fractional_X = x - integer_X;
-
-        int integer_Y = int(y);
-        float fractional_Y = y - integer_Y;
-
-        float v1 = smoothedNoise(integer_X, integer_Y);
-        float v2 = smoothedNoise(integer_X + 1, integer_Y);
-        float v3 = smoothedNoise(integer_X, integer_Y + 1);
-        float v4 = smoothedNoise(integer_X + 1, integer_Y + 1);
-
-        float i1 = interpolate(v1, v2, fractional_X);
-        float i2 = interpolate(v3, v4, fractional_X);
-
-        return interpolate(i1, i2, fractional_Y);
-    }
-
-    float perlin(float x, float y) {
-        float total = 0;
-        int n = complexity;
-
-        for (int i = 0; i < n; i++) {
-            float frequency = 2 * i;
-            float amplitude = i;
-            total = total + interpolatedNoise(x * frequency, y * frequency) * amplitude;
-        }
-        return total;
-    }
-
-    void generateNoise(float noiseArr[], float &minNoise, float &maxNoise, int textureWidth, int textureHeight) {
-        float noiseMapSize = continentDistribution;
-        float xDelta = noiseMapSize / textureWidth;
-        float yDelta = noiseMapSize / textureHeight;
-        minNoise = 1000.0f;
-        maxNoise = -1000.0f;
-        for (float Y = 0.0f; Y < noiseMapSize; Y += yDelta)
-            for (float X = 0.0f; X < noiseMapSize; X += xDelta) {
-                float noise = perlin(X, Y);
-                if (noise < minNoise)
-                    minNoise = noise;
-                if (noise > maxNoise)
-                    maxNoise = noise;
-                int xIndex = (int) (X / xDelta);
-                int yIndex = (int) (Y / yDelta);
-                noiseArr[yIndex * textureWidth + xIndex] = noise;
-            }
-    }
-
-    // [0, 1] tartományba skáláz
-    float scale(float value, float currentMin, float currentMax) {
-        return (value - currentMin) / (currentMax - currentMin);
-    }
-
-    // a kapott [0, 1] tartományba eső értéket eltolja a skála egyik vége felé
-    float hardenEdges(float value) {
-        //kis noise = zöld, nagy noise = kék
-        float hardnessMultiplier = 1 + ((float) hardness / 10.0f);
-        if (value > 0.5) {
-            if (value * hardnessMultiplier < 1.0f)
-                return value * hardnessMultiplier;
-            else
-                return 1.0f;
-        }
-        return value / hardnessMultiplier;
-    }
-
-public:
-    void generate() {
-        glGenTextures(1, &tex);
-        int textureWidth = (int) pow(2, textureWidthPow);
-        int textureHeight = (int) pow(2, textureHeightPow);
-        GLubyte texture_data[textureWidth * textureHeight][3];
-
-        float noiseArr[textureWidth * textureHeight];
-        float minNoise, maxNoise;
-        generateNoise(noiseArr, minNoise, maxNoise, textureWidth, textureHeight);
-
-        for (int i = 0; i < textureWidth * textureHeight; i++) {
-            float noise = scale(noiseArr[i], minNoise, maxNoise);
-            noise = hardenEdges(noise);
-
-            // skálázás [0, 255] tartományba
-            noise *= 255;
-
-            // ennyi/255 -el szorozza a bolygó színét
-            texture_data[i][0] = (GLubyte) (noise);
-            texture_data[i][1] = (GLubyte) (255);
-            texture_data[i][2] = (GLubyte) (noise);
-        }
-
-        glBindTexture(GL_TEXTURE_2D, tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, texture_data[0]);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    Texture() {
-    }
-
-    GLuint getTexture() const {
-        return tex;
-    }
-};
-
-Texture planetTexture;
-
-class Ellipsoid {
+class Ellipsoid : public Object {
     const static unsigned resolution = 60;
     float a, b, c;
     Vector pos;
-    Material material;
     bool textured;
 
     Vector getFirstPartialDerivative(float u, float v) {
@@ -727,7 +773,7 @@ public:
     }
 
     Ellipsoid(float a, float b, float c, Material const &material, Vector const &pos, bool textured)
-            : a(a), b(b), c(c), material(material), pos(pos), textured(textured) {
+            : Object(material), a(a), b(b), c(c), pos(pos), textured(textured) {
     }
 
     void draw() {
@@ -737,10 +783,10 @@ public:
         if (textured) {
             glRotatef(90.0f, 1, 0, 0);
             glEnable(GL_TEXTURE_2D);
-            glBindTexture(GL_TEXTURE_2D, planetTexture.getTexture());
+            glBindTexture(GL_TEXTURE_2D, texture->getTexture());
         }
 
-        changeMaterial(material);
+        material.setOGL();
 
         float startU = PI / (-2.0f);
         float startV = PI * (-1.0f);
@@ -787,18 +833,17 @@ public:
     }
 };
 
-class Cone {
+class Cone : public Object {
     static const int resolution = 30;
     float r, height;
     Vector center, rotate;
-    Material material;
 
 public:
     Cone() {
     }
 
     Cone(float r, float height, Vector const &center, Vector const &rotate, Material const &material)
-            : r(r), height(height), center(center), rotate(rotate), material(material) {
+            : Object(material), r(r), height(height), center(center), rotate(rotate) {
     }
 
     void draw() {
@@ -809,13 +854,7 @@ public:
         glRotatef(rotate.z, 0, 0, 1);
         glScalef(r, height, r);
 
-        float ambient[] = {material.ambient.r, material.ambient.g, material.ambient.b};
-        float diffuse[] = {material.diffuse.r, material.diffuse.g, material.diffuse.b};
-        float specular[] = {material.specular.r, material.specular.g, material.specular.b};
-        glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
-        glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
-        glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
-        glMaterialf(GL_FRONT, GL_SHININESS, material.shine);
+        material.setOGL();
 
         float delta = 2 * PI / (float) resolution;
         glBegin(GL_TRIANGLE_FAN);
@@ -836,13 +875,14 @@ public:
     }
 };
 
-class FramedRectangle {
+class FramedRectangle : public Object {
     Vector pos, rotate;
     Vector a, b, c, d;
     Vector aInside, bInside, cInside, dInside;
+    Material frameMat, insideMat;
 
     void drawFrame() {
-        changeMaterial(chrome);
+        frameMat.setOGL();
         glBegin(GL_QUADS);
         glNormal(Vector(0, 0, 1));
         glVertex(a);
@@ -856,7 +896,7 @@ class FramedRectangle {
     }
 
     void drawInside() {
-        changeMaterial(solarPanelMaterial);
+        insideMat.setOGL();
         glBegin(GL_QUADS);
         glNormal(Vector(0, 0, 1));
         glVertex(aInside);
@@ -874,9 +914,11 @@ public:
 
     }
 
-
     FramedRectangle(Vector const &bottomLeft, Vector const &topRight, Vector const &pos, Vector const &rotate)
             : pos(pos), rotate(rotate) {
+        frameMat = chrome;
+        insideMat = solarPanelMaterial;
+
         b = bottomLeft;
         d = topRight;
         a = Vector(bottomLeft.x, topRight.y);
@@ -912,73 +954,7 @@ public:
     }
 };
 
-class Light0 {
-    Vector pos;
-    Material lightColor;
-
-public:
-    Light0(Vector const &pos, Material const &lightColor)
-            : pos(pos), lightColor(lightColor) {
-        // pozíció, utolsó koordináta 0, ha irányfényforrás
-        GLfloat lightPos[] = {pos.x, pos.y, pos.z, 0};
-        glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
-        GLfloat diffuse[] = {lightColor.diffuse.r, lightColor.diffuse.g, lightColor.diffuse.b, 1.0f};
-        glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
-        GLfloat ambient[] = {lightColor.ambient.r, lightColor.ambient.g, lightColor.ambient.b, 1.0f};
-        glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
-        GLfloat specular[] = {lightColor.specular.r, lightColor.specular.g, lightColor.specular.b, 1.0f};
-        glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
-        float shine = lightColor.shine;
-        glLightf(GL_LIGHT0, GL_SHININESS, lightColor.shine);
-    }
-
-    Light0() {
-    }
-
-    void enable() {
-        glEnable(GL_LIGHTING);
-        glEnable(GL_LIGHT0);
-    }
-
-    void disable() {
-        glDisable(GL_LIGHTING);
-        glDisable(GL_LIGHT0);
-    }
-};
-
-
-void createSpace() {
-    for (int Y = 0; Y < screenHeight; Y++)
-        for (int X = 0; X < screenWidth; X++) {
-            int current = Y * screenWidth + X;
-            if ((current % 184) == (Y * X % 211))
-                space[current] = Color(1.0f, 1.0f, 1.0f);
-            else
-                space[current] = Color(0.0f, 0.0f, 0.0f);
-        }
-}
-
-void setPerspective() {
-    // képernyő méret
-    glViewport(0, 0, screenWidth, screenHeight);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    // perspektíva és vágás
-    glEnable(GL_DEPTH_TEST);
-    float zNear = 0.1;
-    float zFar = 10;
-    gluPerspective(60, 1, zNear, zFar);
-    glMatrixMode(GL_MODELVIEW);
-}
-
-void setCamera() {
-    Vector eye(0.0f, 0.0f, -6.0f);
-    Vector lookat(0.0f, 0.0f, 0.0f);
-    Vector up(0, 1, 0);
-    gluLookAt(eye.x, eye.y, eye.z, lookat.x, lookat.y, lookat.z, up.x, up.y, up.z);
-}
-
-class Satellite {
+class Satellite : public Object {
     Vector pos;
     float size;
 
@@ -988,7 +964,6 @@ class Satellite {
 public:
     Satellite() {
     }
-
 
     Satellite(Vector const &pos, float size) : pos(pos), size(size) {
         satelliteBody = Ellipsoid(size, size, size, chrome, pos, false);
@@ -1015,9 +990,9 @@ public:
         glPopMatrix();
         disableThrowBack();
     }
-} satellite;
+};
 
-class Station {
+class Station : public Object {
     Vector pos, rotate, scale;
     RotatedSpline rotatedSpline;
     FramedRectangle solarPanel1;
@@ -1027,7 +1002,10 @@ public:
     Station() {
     }
 
-    Station(Vector const &pos, Vector const &rotate, Vector const &scale) : pos(pos), rotate(rotate), scale(scale) {
+    Station(Vector const &_pos, Vector const &_rotate, Vector const &_scale) {
+        pos = _pos;
+        rotate = _rotate;
+        scale = _scale;
         solarPanel1 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(-2.0f, 0.8f, 0.0f), Vector(-0.5, 0.0, 0.0), Vector(40.0, 0.0, 0.0));
         solarPanel2 = FramedRectangle(Vector(-2.0f, 0.0f, 0.0f), Vector(0.0f, 0.8f, 0.0f), Vector(2.5, 0.0, 0.0), Vector(40.0, 0.0, 0.0));
         rotatedSpline = RotatedSpline(Vector(0.0f, 0.0f, 0.0f), Vector(0.0f, 0, 90), Vector(1, 1, 1), chrome);
@@ -1054,47 +1032,90 @@ public:
 
 };
 
-Ellipsoid sun;
-Ellipsoid earth;
-Station station;
-Light0 light;
+class Light {
+    GLenum lightId;
+    Material lightColor;
+    bool spot;
+    Vector pos;
 
-Vector earthCenter;
-Vector stationPos;
-Vector stationRotate;
+public:
+    Light(int id, Vector const &pos, Material const &lightColor, bool spot)
+            : pos(pos), lightColor(lightColor), spot(spot) {
+        switch (id) {
+            case 0:
+                lightId = GL_LIGHT0;
+                break;
+            case 1:
+                lightId = GL_LIGHT1;
+                break;
+            case 3:
+                lightId = GL_LIGHT3;
+                break;
+            case 4:
+                lightId = GL_LIGHT4;
+                break;
+            case 5:
+                lightId = GL_LIGHT5;
+                break;
+            case 6:
+                lightId = GL_LIGHT6;
+                break;
+            case 7:
+                lightId = GL_LIGHT7;
+                break;
+            default:
+                lightId = NULL;
+                break;
+        }
 
+        // pozíció, utolsó koordináta 0, ha irányfényforrás
+        GLfloat lightPos[] = {pos.x, pos.y, pos.z, spot};
+        glLightfv(lightId, GL_POSITION, lightPos);
 
-void build() {
-    earthCenter = Vector(4.0f, 0.0f, 8.0f);
-    Vector sunCenter = Vector(-3.5f, 4.0f, 4.5f);
-    stationPos = Vector(-0.5f, 1.0f, 3.0f);
-    stationRotate = Vector(0.0f, 0, 20);
-    createSpace();
+        // szín
+        Color diffuse = lightColor.getDiffuse();
+        Color ambient = lightColor.getAmbient();
+        Color specular = lightColor.getSpecular();
 
-    earth = Ellipsoid(5.0f, 5.0f, 5.0f, planet, earthCenter, true);
-    satellite = Satellite(Vector(-2.0f, -0.7, 1), 0.6f);
+        GLfloat diffuseArr[] = {diffuse.r, diffuse.g, diffuse.b, 1.0f};
+        GLfloat ambientArr[] = {ambient.r, ambient.g, ambient.b, 1.0f};
+        GLfloat specularArr[] = {specular.r, specular.g, specular.b, 1.0f};
 
-    Material sunLight;
-    sunLight.shine = 1;
-    sunLight.diffuse = Color(1.0f, 1.0f, 1.0f);
-    sunLight.ambient = Color(1.0f, 1.0f, 1.0f);
-    sunLight.specular = Color(1.0f, 1.0f, 1.0f);
+        glLightfv(lightId, GL_DIFFUSE, diffuseArr);
+        glLightfv(lightId, GL_AMBIENT, ambientArr);
+        glLightfv(lightId, GL_SPECULAR, specularArr);
+        glLightf(lightId, GL_SHININESS, lightColor.getShine());
+    }
 
-    sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
-    light = Light0(Vector(3.5f, 4.0f, -4.5f), sunLight * 3);
+    Light() {
+    }
 
-    station = Station(stationPos, stationRotate, Vector(1.0, 1.0, 1.0));
+    void enable() {
+        glEnable(GL_LIGHTING);
+        glEnable(lightId);
+    }
 
+    void disable() {
+        glDisable(GL_LIGHTING);
+        glDisable(lightId);
+    }
+};
+
+void createSpace() {
+    for (int Y = 0; Y < screenHeight; Y++)
+        for (int X = 0; X < screenWidth; X++) {
+            int current = Y * screenWidth + X;
+            if ((current % 184) == (Y * X % 211))
+                space[current] = Color(1.0f, 1.0f, 1.0f);
+            else
+                space[current] = Color(0.0f, 0.0f, 0.0f);
+        }
 }
 
 void drawSpace() {
     glDisable(GL_DEPTH_TEST);
     glDrawPixels(screenWidth, screenHeight, GL_RGB, GL_FLOAT, space);
     glEnable(GL_DEPTH_TEST);
-}
-
-void debug() {
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 }
 
 void drawCircle(Vector center, float radius) {
@@ -1110,12 +1131,119 @@ void drawCircle(Vector center, float radius) {
     glEnd();
 }
 
+void debug() {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+}
+
+class Camera {
+    Vector eye, lookat, up;
+    float viewAngleDegree, zNear, zFar;
+
+public:
+    Camera() {
+    }
+
+    Camera(Vector const &eye, Vector const &lookat, Vector const &up, float viewAngleDegree, float zNear, float zFar)
+            : eye(eye), lookat(lookat), up(up), viewAngleDegree(viewAngleDegree), zNear(zNear), zFar(zFar) {
+    }
+
+    void setOGL() {
+        // képernyő méret
+        glViewport(0, 0, screenWidth, screenHeight);
+
+        // projekció mátrix beállítás
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        glEnable(GL_DEPTH_TEST);
+        gluPerspective(viewAngleDegree, (float) screenWidth / (float) screenHeight, zNear, zFar);
+
+        // modelview mátrix
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        gluLookAt(eye.x, eye.y, eye.z, lookat.x, lookat.y, lookat.z, up.x, up.y, up.z);
+    }
+};
+
+Vector earthCenter;
+Vector stationPos;
+Vector stationRotate;
+Vector satellitePos;
+
+class Scene {
+    Light *light;
+    Camera *camera;
+
+    Ellipsoid earth;
+    Ellipsoid sun;
+    Satellite satellite;
+    Station station;
+
+    void createCamera() {
+        Vector eye(0.0f, 0.0f, -6.0f);
+        Vector lookat(0.0f, 0.0f, 0.0f);
+        Vector up(0, 1, 0);
+        float zNear = 0.1;
+        float zFar = 10;
+        float viewAngle = 60.0f;
+        camera = new Camera(eye, lookat, up, viewAngle, zNear, zFar);
+        camera->setOGL();
+    }
+
+public:
+    void build() {
+        createCamera();
+        PlanetTexture planetTexture;
+        planetTexture.generate();
+        planetTexture.setOGL();
+
+        earthCenter = Vector(4.0f, 0.0f, 8.0f);
+        Vector sunCenter = Vector(-3.5f, 4.0f, 4.5f);
+        stationPos = Vector(-0.5f, 1.0f, 3.0f);
+        stationRotate = Vector(0.0f, 0, 20);
+        satellitePos = Vector(-2.0f, -0.7, 1);
+
+        createSpace();
+
+        light = new Light(0, Vector(-3.5f, 4.0f, 4.5f), sunLight, false);
+
+        earth = Ellipsoid(5.0f, 5.0f, 5.0f, planet, earthCenter, true);
+        earth.setTexture(&planetTexture);
+        sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
+        satellite = Satellite(satellitePos, 0.6f);
+        station = Station(stationPos, stationRotate, Vector(1.0, 1.0, 1.0));
+
+    };
+
+    void render() {
+        light->enable();
+        enableThrowBackCW();
+        earth.draw();
+        disableThrowBack();
+
+        light->disable();
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glColor4f(atmosphereColor.r, atmosphereColor.g, atmosphereColor.b, 0.15f);
+        drawCircle(earthCenter + Vector(-1.6f, 0.0f, 0.0f), 2.2f);
+        glDisable(GL_BLEND);
+        glEnable(GL_DEPTH_TEST);
+        light->enable();
+
+        station.draw();
+        satellite.draw();
+
+        light->disable();
+        glColor3f(sunColor.getAmbient().r, sunColor.getAmbient().g, sunColor.getAmbient().b);
+        enableThrowBackCW();
+        sun.draw();
+        disableThrowBack();
+    };
+} scene;
+
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
 void onInitialization() {
-    planetTexture.generate();
-    build();
-    setPerspective();
-    setCamera();
+    scene.build();
     glShadeModel(GL_SMOOTH);
 }
 
@@ -1125,31 +1253,9 @@ void onDisplay() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // kepernyo torles
     drawSpace();
     //debug();
+    scene.render();
 
-    light.enable();
 
-    enableThrowBackCW();
-    earth.draw();
-    disableThrowBack();
-
-    light.disable();
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColor4f(atmosphereColor.r, atmosphereColor.g, atmosphereColor.b, 0.15f);
-    drawCircle(earthCenter + Vector(-1.6f, 0.0f, 0.0f), 2.2f);
-    glDisable(GL_BLEND);
-    glEnable(GL_DEPTH_TEST);
-    light.enable();
-
-    station.draw();
-    satellite.draw();
-
-    light.disable();
-    glColor3f(sunColor.ambient.r, sunColor.ambient.g, sunColor.ambient.b);
-    enableThrowBackCW();
-    sun.draw();
-    disableThrowBack();
 
     glutSwapBuffers();                    // Buffercsere: rajzolas vege
 
