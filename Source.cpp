@@ -239,10 +239,11 @@ public:
 // diffuse, ambient, specular, shine
 const Material chrome = Material(Color(0.4, 0.4, 0.4), Color(0.25, 0.25, 0.25) * 0.4, Color(0.77, 0.77, 0.77), 0.6);
 const Material solarPanelMaterial = Material(Color(0.01, 0.01, 0.01), Color(0.01, 0.01, 0.01), Color(0.1, 0.1, 0.1), 0.8);
-const Material planet = Material(Color(0.06, 0.06, 0.39), Color(0.06, 0.06, 0.39), Color(0.06 * 8.0, 0.06 * 8.0, 0.39 * 8.0), 80.0);
+const Material planet = Material(Color(0.06, 0.06, 0.39) * 7, Color(0, 0, 0), Color(0, 0, 0), 0.0);
 const Material sunColor = Material(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0) * 2.5f;
 const Material sunLight = Material(Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), 1.0) * 0.5f;
-Color atmosphereColor = Color(157.0f / 255.0f, 217.0f / 255.0f, 237.0f / 255.0f);
+Color atmosphereColor = Color(0.62, 0.85, 0.93 * 1.2) * 0.8;
+const Material atmosphereMat = Material(atmosphereColor * 0.5, Color(0, 0, 0), atmosphereColor, 10.0);
 
 class Texture {
 protected:
@@ -730,7 +731,7 @@ public:
 };
 
 class Ellipsoid : public Object {
-    const static unsigned resolution = 70;
+    const static unsigned resolution = 200;
     float a, b, c;
     Vector pos;
     bool textured;
@@ -1180,6 +1181,7 @@ class Scene {
     Camera *camera;
 
     Ellipsoid earth;
+    Ellipsoid atmosphere;
     Ellipsoid sun;
     Satellite satellite;
     Station station;
@@ -1191,7 +1193,7 @@ class Scene {
     void createCamera() {
         Vector up(0, 1, 0);
         float zNear = 0.1;
-        float zFar = 10;
+        float zFar = 35;
         float viewAngle = 60.0f;
         camera = new Camera(eye, lookat, up, viewAngle, zNear, zFar);
         camera->setOGL();
@@ -1201,18 +1203,19 @@ public:
     void build() {
         planetTexture.setOGL();
 
-        earthCenter = Vector(-4.0f, 0.0f, -8.0f);
-        sunCenter = Vector(3.5f, 4.0f, 4.5f);
-        stationPos = Vector(0.5f, 1.0f, -3.0f);
+        earthCenter = Vector(-4.0f, 0.0f, -25.0f);
+        sunCenter = Vector(8, 5.0f, 3.0f);
         stationPos = Vector(0.5f, 0.0f, -3.0f);
         stationRotate = Vector(0.0f, 0, 20);
-        satellitePos = Vector(2.0f, -0.7, -0.8);
+        satellitePos = Vector(2.8f, -1.4, -2);
 
         light = new Light(0, sunCenter, sunLight, false);
 
-        earth = Ellipsoid(5.0f, 5.0f, 5.0f, planet, earthCenter, true);
+        earth = Ellipsoid(10.0f, 10.0f, 10.0f, planet, earthCenter, true);
         earth.setTexture(&planetTexture);
         sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
+        atmosphere = Ellipsoid(11.f, 11.0f, 11.0f, atmosphereMat, earthCenter, false);
+
         satellite = Satellite(satellitePos, 0.6f);
         station = Station(stationPos, stationRotate, Vector(1.0, 1.0, 1.0));
 
@@ -1230,15 +1233,12 @@ public:
         earth.draw();
         disableThrowBack();
 
-        light->disable();
-        glDisable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glColor4f(atmosphereColor.r, atmosphereColor.g, atmosphereColor.b, 0.15f);
-        drawCircle(earthCenter + Vector(1.6f, 0.0f, 0.0f), 2.2f);
+        enableThrowBackCW();
+        atmosphere.draw();
+        disableThrowBack();
         glDisable(GL_BLEND);
-        glEnable(GL_DEPTH_TEST);
-        light->enable();
 
         station.draw();
         satellite.draw();
