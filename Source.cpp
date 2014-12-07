@@ -396,6 +396,10 @@ void glNormal(Vector const &v) {
     glNormal3f(v.x, v.y, v.z);
 }
 
+void glTexCoord(Vector const &v) {
+    glTexCoord2f(v.x, v.y);
+}
+
 void enableThrowBackCW() {
     // hátsólap-eldobás
     glFrontFace(GL_CW); // Az normál irányából nézve CCW a körüljárási irány
@@ -707,10 +711,15 @@ public:
 };
 
 class Ellipsoid : public Object {
-    const static unsigned resolution = 200;
+    const static unsigned resolution = 60;
     float a, b, c;
     Vector pos;
     bool textured;
+
+    const static int vertexNr = (resolution + 1) * (resolution + 1) * 4;
+    Vector vertexes[vertexNr];
+    Vector normals[vertexNr];
+    Vector texVertexes[vertexNr];
 
     Vector getFirstPartialDerivative(float u, float v) const {
         return Vector(
@@ -766,40 +775,12 @@ public:
 
         material.setOGL();
 
-        float startU = PI / (-2.0f);
-        float startV = PI * (-1.0f);
-        float endU = PI / 2.0f;
-        float endV = PI;
-        float du = (endU - startU) / resolution;
-        float dv = (endV - startV) / resolution;
         glBegin(GL_QUADS);
-        for (float u = startU; u < endU; u += du) {
-            for (float v = startV; v < endV; v += dv) {
-                float uX = (u - startU) / (endU - startU);
-                float uX1 = (u - startU + du) / (endU - startU);
-                float vX = (v - startV) / (endV - startV);
-                float vX1 = (v - startV + dv) / (endV - startV);
-
-                if (textured)
-                    glTexCoord2f(uX, vX);
-                glNormal(getNormal(u, v));
-                glVertex(getSurfacePoint(u, v));
-
-                if (textured)
-                    glTexCoord2f(uX1, vX);
-                glNormal(getNormal(u + du, v));
-                glVertex(getSurfacePoint(u + du, v));
-
-                if (textured)
-                    glTexCoord2f(uX1, vX1);
-                glNormal(getNormal(u + du, v + dv));
-                glVertex(getSurfacePoint(u + du, v + dv));
-
-                if (textured)
-                    glTexCoord2f(uX, vX1);
-                glNormal(getNormal(u, v + dv));
-                glVertex(getSurfacePoint(u, v + dv));
-            }
+        for (size_t i = 0; i < vertexNr; i++) {
+            if (textured)
+                glTexCoord(texVertexes[i]);
+            glNormal(normals[i]);
+            glVertex(vertexes[i]);
         }
         glEnd();
 
@@ -808,6 +789,43 @@ public:
             glDisable(GL_TEXTURE_2D);
         }
         glPopMatrix();
+    }
+
+    void generate() {
+        float startU = PI / (-2.0f);
+        float startV = PI * (-1.0f);
+        float endU = PI / 2.0f;
+        float endV = PI;
+        float du = (endU - startU) / resolution;
+        float dv = (endV - startV) / resolution;
+
+        size_t currentVertex = 0;
+        for (float u = startU; u < endU; u += du)
+            for (float v = startV; v < endV; v += dv) {
+                vertexes[currentVertex] = getSurfacePoint(u, v);
+                vertexes[currentVertex + 1] = getSurfacePoint(u + du, v);
+                vertexes[currentVertex + 2] = getSurfacePoint(u + du, v + dv);
+                vertexes[currentVertex + 3] = getSurfacePoint(u, v + dv);
+
+                normals[currentVertex] = getNormal(u, v);
+                normals[currentVertex + 1] = getNormal(u + du, v);
+                normals[currentVertex + 2] = getNormal(u + du, v + dv);
+                normals[currentVertex + 3] = getNormal(u, v + dv);
+
+                if (textured) {
+                    float uX = (u - startU) / (endU - startU);
+                    float uX1 = (u - startU + du) / (endU - startU);
+                    float vX = (v - startV) / (endV - startV);
+                    float vX1 = (v - startV + dv) / (endV - startV);
+
+                    texVertexes[currentVertex] = Vector(uX, vX);
+                    texVertexes[currentVertex + 1] = Vector(uX1, vX);
+                    texVertexes[currentVertex + 2] = Vector(uX1, vX1);
+                    texVertexes[currentVertex + 3] = Vector(uX, vX1);
+                }
+
+                currentVertex += 4;
+            }
     }
 };
 
@@ -990,6 +1008,10 @@ public:
         jetFront.draw();
         disableThrowBack();
         glPopMatrix();
+    }
+
+    void generate() {
+        satelliteBody.generate();
     }
 };
 
@@ -1185,19 +1207,25 @@ public:
         planetTexture.setOGL();
 
         earthCenter = Vector(-4.0f, 0.0f, -25.0f);
+        earth = Ellipsoid(10.0f, 10.0f, 10.0f, planet, earthCenter, true);
+        earth.setTexture(&planetTexture);
+        earth.generate();
+
+        atmosphere = Ellipsoid(11.f, 11.0f, 11.0f, atmosphereMat, earthCenter, false);
+        atmosphere.generate();
+
         sunCenter = Vector(8, 5.0f, 3.0f);
-        stationPos = Vector(0.5f, 0.0f, -3.0f);
-        stationRotate = Vector(0.0f, 0, 20);
-        satellitePos = Vector(2.8f, -1.4, -2);
+        sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
+        sun.generate();
 
         light = new Light(0, sunCenter, sunLight, false);
 
-        earth = Ellipsoid(10.0f, 10.0f, 10.0f, planet, earthCenter, true);
-        earth.setTexture(&planetTexture);
-        sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
-        atmosphere = Ellipsoid(11.f, 11.0f, 11.0f, atmosphereMat, earthCenter, false);
-
+        satellitePos = Vector(2.8f, -1.4, -2);
         satellite = Satellite(satellitePos, 0.6f);
+        satellite.generate();
+
+        stationPos = Vector(0.5f, 0.0f, -3.0f);
+        stationRotate = Vector(0.0f, 0, 20);
         station = Station(stationPos, stationRotate, Vector(1.0, 1.0, 1.0));
         station.generate();
 
