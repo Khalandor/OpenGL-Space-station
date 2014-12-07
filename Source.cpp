@@ -834,6 +834,9 @@ class Cone : public Object {
     float r, height;
     Vector center, rotate;
 
+    const static int vertexNr = resolution + 1;
+    Vector vertexes[vertexNr];
+
 public:
     Cone() {
     }
@@ -852,22 +855,28 @@ public:
 
         material.setOGL();
 
-        float delta = 2 * PI / (float) resolution;
         glBegin(GL_TRIANGLE_FAN);
         Vector top = Vector(0, 1, 0);
         glNormal(top);
         glVertex(top);
+        for (int i = 0; i < vertexNr; i++) {
+            glNormal(vertexes[i]);
+            glVertex(vertexes[i]);
+        }
+        glEnd();
+        glPopMatrix();
+    }
+
+    void generate() {
+        float delta = 2 * PI / (float) resolution;
         for (int i = 0; i <= resolution; i++) {
             Vector pointOnCircle = Vector(
                     (r * (float) cos(i * delta)),
                     0.0f,
                     0.0f + (r * (float) sin(i * delta))
             );
-            glNormal(pointOnCircle);
-            glVertex(pointOnCircle);
+            vertexes[i] = pointOnCircle;
         }
-        glEnd();
-        glPopMatrix();
     }
 };
 
@@ -1012,6 +1021,12 @@ public:
 
     void generate() {
         satelliteBody.generate();
+        jetLeft.generate();
+        jetRight.generate();
+        jetTop.generate();
+        jetBottom.generate();
+        jetBack.generate();
+        jetFront.generate();
     }
 };
 
@@ -1124,19 +1139,6 @@ public:
         glDisable(lightId);
     }
 };
-
-void drawCircle(Vector center, float radius) {
-    int triangles = 30;
-    float delta = 2 * PI / triangles;
-    glBegin(GL_TRIANGLE_FAN);
-    glVertex2f(center.x, center.y);
-    for (int i = 0; i <= triangles; i++)
-        glVertex2f(
-                center.x + (radius * (float) cos(i * delta)),
-                center.y + (radius * (float) sin(i * delta))
-        );
-    glEnd();
-}
 
 void debug() {
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
