@@ -555,12 +555,9 @@ class RotatedSpline : public Object {
     Material darkMaterial;
     Vector pos, rotate, scale;
 
-    const static int splineRes = 200;
-    const static int circleRes = 150;
-    const static int vertexNr = (splineRes + 1) * (circleRes + 1) * 4;
-
-    Vector vertexes[vertexNr];
-    Vector normals[vertexNr];
+    int vertexNr;
+    Vector *vertexes;
+    Vector *normals;
 
     float circleDelta;
     float splineDelta;
@@ -619,10 +616,14 @@ class RotatedSpline : public Object {
 
 public:
     RotatedSpline() {
+        vertexes = NULL;
+        normals = NULL;
     }
 
     RotatedSpline(Vector const &pos, Vector const &rotate, Vector const &scale, Material material)
             : Object(material), pos(pos), rotate(rotate), scale(scale) {
+        vertexes = NULL;
+        normals = NULL;
         darkMaterial = material * 0.01f;
     }
 
@@ -656,7 +657,11 @@ public:
         glPopMatrix();
     }
 
-    void generate() {
+    void generate(int splineRes, int circleRes) {
+        vertexNr = (splineRes + 1) * (circleRes + 1) * 4;
+        vertexes = new Vector[vertexNr];
+        normals = new Vector[vertexNr];
+
         CatmullRomSpline spline;
         spline.addControlPoint(Vector((31.0f - 45.85f) * 10.0f, 42.6) / 100.0f, 0.863);
         spline.addControlPoint(Vector((35.9f - 45.85f) * 10.0f, 50.0) / 100.0f, 1.367);
@@ -708,18 +713,24 @@ public:
             }
         }
     }
+
+    ~RotatedSpline() {
+        if (vertexes != NULL)
+            delete[] vertexes;
+        if (normals != NULL)
+            delete[] normals;
+    }
 };
 
 class Ellipsoid : public Object {
-    const static unsigned resolution = 60;
     float a, b, c;
     Vector pos;
     bool textured;
 
-    const static int vertexNr = (resolution + 1) * (resolution + 1) * 4;
-    Vector vertexes[vertexNr];
-    Vector normals[vertexNr];
-    Vector texVertexes[vertexNr];
+    int vertexNr;
+    Vector *vertexes;
+    Vector *normals;
+    Vector *texVertexes;
 
     Vector getFirstPartialDerivative(float u, float v) const {
         return Vector(
@@ -755,11 +766,18 @@ class Ellipsoid : public Object {
 
 public:
     Ellipsoid() {
+        vertexes = NULL;
+        normals = NULL;
+        texVertexes = NULL;
     }
 
     Ellipsoid(float a, float b, float c, Material const &material, Vector const &pos, bool textured)
             : Object(material), a(a), b(b), c(c), pos(pos), textured(textured) {
+        vertexes = NULL;
+        normals = NULL;
+        texVertexes = NULL;
     }
+
 
     void draw() {
         glPushMatrix();
@@ -791,7 +809,12 @@ public:
         glPopMatrix();
     }
 
-    void generate() {
+    void generate(int resolution) {
+        vertexNr = (resolution + 1) * (resolution + 1) * 4;
+        vertexes = new Vector[vertexNr];
+        normals = new Vector[vertexNr];
+        texVertexes = new Vector[vertexNr];
+
         float startU = PI / (-2.0f);
         float startV = PI * (-1.0f);
         float endU = PI / 2.0f;
@@ -827,22 +850,32 @@ public:
                 currentVertex += 4;
             }
     }
+
+    ~Ellipsoid() {
+        if (vertexes != NULL)
+            delete[] vertexes;
+        if (normals != NULL)
+            delete[] normals;
+        if (texVertexes != NULL)
+            delete[] texVertexes;
+    }
 };
 
 class Cone : public Object {
-    static const int resolution = 30;
     float r, height;
     Vector center, rotate;
 
-    const static int vertexNr = resolution + 1;
-    Vector vertexes[vertexNr];
+    int vertexNr;
+    Vector *vertexes;
 
 public:
     Cone() {
+        vertexes = NULL;
     }
 
     Cone(float r, float height, Vector const &center, Vector const &rotate, Material const &material)
             : Object(material), r(r), height(height), center(center), rotate(rotate) {
+        vertexes = NULL;
     }
 
     void draw() {
@@ -867,7 +900,10 @@ public:
         glPopMatrix();
     }
 
-    void generate() {
+    void generate(int resolution) {
+        vertexNr = resolution + 1;
+        vertexes = new Vector[vertexNr];
+
         float delta = 2 * PI / (float) resolution;
         for (int i = 0; i <= resolution; i++) {
             Vector pointOnCircle = Vector(
@@ -877,6 +913,11 @@ public:
             );
             vertexes[i] = pointOnCircle;
         }
+    }
+
+    ~Cone() {
+        if (vertexes != NULL)
+            delete[] vertexes;
     }
 };
 
@@ -1020,13 +1061,14 @@ public:
     }
 
     void generate() {
-        satelliteBody.generate();
-        jetLeft.generate();
-        jetRight.generate();
-        jetTop.generate();
-        jetBottom.generate();
-        jetBack.generate();
-        jetFront.generate();
+        satelliteBody.generate(140);
+        int coneResolution = 10;
+        jetLeft.generate(coneResolution);
+        jetRight.generate(coneResolution);
+        jetTop.generate(coneResolution);
+        jetBottom.generate(coneResolution);
+        jetBack.generate(coneResolution);
+        jetFront.generate(coneResolution);
     }
 };
 
@@ -1066,7 +1108,7 @@ public:
     }
 
     void generate() {
-        rotatedSpline.generate();
+        rotatedSpline.generate(200, 150);
     }
 
 };
@@ -1182,8 +1224,8 @@ Vector lookat, eye;
 
 
 class Scene {
-    Light *light;
-    Camera *camera;
+    Light light;
+    Camera camera;
 
     Ellipsoid earth;
     Ellipsoid atmosphere;
@@ -1200,8 +1242,8 @@ class Scene {
         float zNear = 0.1;
         float zFar = 35;
         float viewAngle = 60.0f;
-        camera = new Camera(eye, lookat, up, viewAngle, zNear, zFar);
-        camera->setOGL();
+        camera = Camera(eye, lookat, up, viewAngle, zNear, zFar);
+        camera.setOGL();
     }
 
 public:
@@ -1211,16 +1253,16 @@ public:
         earthCenter = Vector(-4.0f, 0.0f, -25.0f);
         earth = Ellipsoid(10.0f, 10.0f, 10.0f, planet, earthCenter, true);
         earth.setTexture(&planetTexture);
-        earth.generate();
+        earth.generate(30);
 
         atmosphere = Ellipsoid(11.f, 11.0f, 11.0f, atmosphereMat, earthCenter, false);
-        atmosphere.generate();
+        atmosphere.generate(40);
 
         sunCenter = Vector(8, 5.0f, 3.0f);
         sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
-        sun.generate();
+        sun.generate(10);
 
-        light = new Light(0, sunCenter, sunLight, false);
+        light = Light(0, sunCenter, sunLight, false);
 
         satellitePos = Vector(2.8f, -1.4, -2);
         satellite = Satellite(satellitePos, 0.6f);
@@ -1239,7 +1281,7 @@ public:
     void render() {
         disableThrowBack();
         space.draw();
-        light->enable();
+        light.enable();
 
         enableThrowBackCW();
         earth.draw();
@@ -1255,7 +1297,7 @@ public:
         station.draw();
         satellite.draw();
 
-        light->disable();
+        light.disable();
         glColor3f(sunColor.getAmbient().r, sunColor.getAmbient().g, sunColor.getAmbient().b);
         enableThrowBackCW();
         sun.draw();
