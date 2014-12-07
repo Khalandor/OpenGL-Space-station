@@ -620,7 +620,7 @@ public:
         normals = NULL;
     }
 
-    RotatedSpline(Vector const &pos, Vector const &rotate, Vector const &scale, Material material)
+    RotatedSpline(Vector const &pos, Vector const &scale, Material material)
             : Object(material), pos(pos), rotate(rotate), scale(scale) {
         vertexes = NULL;
         normals = NULL;
@@ -632,9 +632,8 @@ public:
 
         glPushMatrix();
         glTranslatef(pos.x, pos.y, pos.z);
-        glRotatef(rotate.x, 1, 0, 0);
-        glRotatef(rotate.y, 0, 1, 0);
-        glRotatef(rotate.z, 0, 0, 1);
+        // függőleges
+        glRotatef(90, 0, 0, 1);
         glScalef(scale.x, scale.y, scale.z);
 
         glBegin(GL_QUAD_STRIP);
@@ -663,15 +662,15 @@ public:
         normals = new Vector[vertexNr];
 
         CatmullRomSpline spline;
-        spline.addControlPoint(Vector((31.0f - 45.85f) * 10.0f, 42.6) / 100.0f, 0.863);
-        spline.addControlPoint(Vector((35.9f - 45.85f) * 10.0f, 50.0) / 100.0f, 1.367);
-        spline.addControlPoint(Vector((39.6f - 45.85f) * 10.0f, 42.4) / 100.0f, 1.853);
-        spline.addControlPoint(Vector((42.8f - 45.85f) * 10.0f, 50.9) / 100.0f, 2.37);
-        spline.addControlPoint(Vector((45.85f - 45.85f) * 10.0f, 43.2) / 100.0f, 2.91);
-        spline.addControlPoint(Vector((50.1f - 45.85f) * 10.0f, 50.6) / 100.0f, 3.49);
-        spline.addControlPoint(Vector((53.7f - 45.85f) * 10.0f, 44.1) / 100.0f, 4.05);
-        spline.addControlPoint(Vector((56.7f - 45.85f) * 10.0f, 50.5) / 100.0f, 4.64);
-        spline.addControlPoint(Vector((60.7f - 45.85f) * 10.0f, 43.0) / 100.0f, 5.22);
+        spline.addControlPoint(Vector(-1.485f, 0.426), 0.863);
+        spline.addControlPoint(Vector(-0.995f, 0.500), 1.367);
+        spline.addControlPoint(Vector(-0.625f, 0.424), 1.853);
+        spline.addControlPoint(Vector(-0.305f, 0.509), 2.370);
+        spline.addControlPoint(Vector(0.000f, 0.432), 2.910);
+        spline.addControlPoint(Vector(0.425f, 0.506), 3.490);
+        spline.addControlPoint(Vector(0.785f, 0.441), 4.050);
+        spline.addControlPoint(Vector(1.085f, 0.505), 4.640);
+        spline.addControlPoint(Vector(1.485f, 0.430), 5.220);
         spline.computeV();
 
         holeMiddle = getSurfacePoint(Vector(0.0f, 43.2) / 100.0f, PI / 2.0f);
@@ -724,7 +723,7 @@ public:
 
 class Ellipsoid : public Object {
     float a, b, c;
-    Vector pos;
+    Vector center;
     bool textured;
 
     int vertexNr;
@@ -772,7 +771,7 @@ public:
     }
 
     Ellipsoid(float a, float b, float c, Material const &material, Vector const &pos, bool textured)
-            : Object(material), a(a), b(b), c(c), pos(pos), textured(textured) {
+            : Object(material), a(a), b(b), c(c), center(pos), textured(textured) {
         vertexes = NULL;
         normals = NULL;
         texVertexes = NULL;
@@ -781,7 +780,7 @@ public:
 
     void draw() {
         glPushMatrix();
-        glTranslatef(pos.x, pos.y, pos.z);
+        glTranslatef(center.x, center.y, center.z);
 
         if (textured) {
             // szép oldal felé forgatás
@@ -849,6 +848,11 @@ public:
 
                 currentVertex += 4;
             }
+    }
+
+
+    Vector const &getCenter() const {
+        return center;
     }
 
     ~Ellipsoid() {
@@ -980,18 +984,18 @@ public:
         Vector dc = c - d;
         float frameSize = (ad.length() + ab.length() + bc.length() + cd.length()) / 4.0f / 20.0f;
 
-        aInside = a + ad.normalized() * frameSize + ab.normalized() * frameSize + Vector(0, 0, 0.01f);
-        bInside = b + ba.normalized() * frameSize + bc.normalized() * frameSize + Vector(0, 0, 0.01f);
-        cInside = c + cd.normalized() * frameSize + cb.normalized() * frameSize + Vector(0, 0, 0.01f);
-        dInside = d + da.normalized() * frameSize + dc.normalized() * frameSize + Vector(0, 0, 0.01f);
+        aInside = a + ad.normalized() * frameSize + ab.normalized() * frameSize + Vector(0, 0, 0.05f);
+        bInside = b + ba.normalized() * frameSize + bc.normalized() * frameSize + Vector(0, 0, 0.05f);
+        cInside = c + cd.normalized() * frameSize + cb.normalized() * frameSize + Vector(0, 0, 0.05f);
+        dInside = d + da.normalized() * frameSize + dc.normalized() * frameSize + Vector(0, 0, 0.05f);
     }
 
     void draw() {
         glPushMatrix();
         glTranslatef(pos.x, pos.y, pos.z);
-        glRotatef(rotate.x, 1, 0, 0);
-        glRotatef(rotate.y, 0, 1, 0);
-        glRotatef(rotate.z, 0, 0, 1);
+        //glRotatef(rotate.x, 1, 0, 0);
+        //glRotatef(rotate.y, 0, 1, 0);
+        //glRotatef(rotate.z, 0, 0, 1);
 
         drawFrame();
         drawInside();
@@ -1073,7 +1077,8 @@ public:
 };
 
 class Station : public Object {
-    Vector pos, rotate, scale;
+    Vector pos, scale;
+    float rotationAngle;
     RotatedSpline rotatedSpline;
     FramedRectangle solarPanel1;
     FramedRectangle solarPanel2;
@@ -1082,19 +1087,18 @@ public:
     Station() {
     }
 
-    Station(Vector const &pos, Vector const &rotate, Vector const &scale) : pos(pos), rotate(rotate), scale(scale) {
-        //Vector const &bottomLeft, Vector const &topRight, Vector const &pos, Vector const &rotate)
+    Station(Vector const &pos, float rotationAngle, Vector const &scale)
+            : pos(pos), rotationAngle(rotationAngle), scale(scale) {
         solarPanel1 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(0.5, 0.0, 0.0), Vector(-20.0, 0.0, 0.0));
         solarPanel2 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(-2.5, 0.0, 0.0), Vector(-20.0, 0.0, 0.0));
-        rotatedSpline = RotatedSpline(Vector(0.0f, 0.0f, 0.0f), Vector(0.0f, 0, 90), Vector(1, 1, 1), chrome);
+        rotatedSpline = RotatedSpline(Vector(0.0f, 0.0f, 0.0f), Vector(1, 1, 1), chrome);
     }
 
     void draw() {
         glPushMatrix();
         glTranslatef(pos.x, pos.y, pos.z);
-        glRotatef(rotate.x, 1, 0, 0);
-        glRotatef(rotate.y, 0, 1, 0);
-        glRotatef(rotate.z, 0, 0, 1);
+        glRotatef(20, 0, 0, 1);
+        glRotatef(rotationAngle, 0, 1, 0);
         glScalef(scale.x, scale.y, scale.z);
 
         //enableThrowBackCCW();
@@ -1103,7 +1107,6 @@ public:
         solarPanel1.draw();
         solarPanel2.draw();
         disableThrowBack();
-
         glPopMatrix();
     }
 
@@ -1111,6 +1114,23 @@ public:
         rotatedSpline.generate(200, 150);
     }
 
+
+    Vector const &getPos() const {
+        return pos;
+    }
+
+    void setPos(Vector const &pos) {
+        Station::pos = pos;
+    }
+
+
+    float getRotationAngle() const {
+        return rotationAngle;
+    }
+
+    void setRotationAngle(float rotationAngle) {
+        Station::rotationAngle = rotationAngle;
+    }
 };
 
 class Light {
@@ -1215,18 +1235,20 @@ public:
     }
 };
 
-// station pos forgás
-// lookat, eye
-// satellite pos
+/*
 Vector stationPos, stationRotate;
 Vector satellitePos;
 Vector lookat, eye;
+*/
 
 
 class Scene {
+    long currentTime;
+
+    Vector eye, lookat;
+
     Light light;
     Camera camera;
-
     Ellipsoid earth;
     Ellipsoid atmosphere;
     Ellipsoid sun;
@@ -1235,22 +1257,42 @@ class Scene {
     PlanetTexture planetTexture;
     Space space;
 
-    Vector earthCenter, sunCenter;
-
-    void createCamera() {
+    void setCamera() {
         Vector up(0, 1, 0);
         float zNear = 0.1;
-        float zFar = 35;
+        float zFar = 55;
         float viewAngle = 60.0f;
         camera = Camera(eye, lookat, up, viewAngle, zNear, zFar);
         camera.setOGL();
+    }
+
+    float degreeToRad(float degree) {
+        return degree * 2.0f * PI / 360.0f;
+    }
+
+    void moveStation(float ts) {
+        float orbitTime = 200000.0;
+        float periodsDone = floorf(ts / orbitTime);
+        float timePastInPeriod = ts - (periodsDone * orbitTime);
+        float periodPart = timePastInPeriod / orbitTime;
+        float angle = 2 * PI * periodPart + degreeToRad(40);
+
+        float radius = 20;
+        float newX = (float) (earth.getCenter().x - radius * cos(angle));
+        float newZ = (float) (earth.getCenter().z + radius * sin(angle));
+
+        station.setPos(Vector(newX, station.getPos().y, newZ));
+    }
+
+    void rotateStation(float ts) {
+        station.setRotationAngle(station.getRotationAngle() + 0.1);
     }
 
 public:
     void build() {
         planetTexture.setOGL();
 
-        earthCenter = Vector(-4.0f, 0.0f, -25.0f);
+        Vector earthCenter = Vector(-4.0f, 0.0f, -25.0f);
         earth = Ellipsoid(10.0f, 10.0f, 10.0f, planet, earthCenter, true);
         earth.setTexture(&planetTexture);
         earth.generate(30);
@@ -1258,24 +1300,25 @@ public:
         atmosphere = Ellipsoid(11.f, 11.0f, 11.0f, atmosphereMat, earthCenter, false);
         atmosphere.generate(40);
 
-        sunCenter = Vector(8, 5.0f, 3.0f);
+        Vector sunCenter = Vector(8, 5.0f, 3.0f);
         sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
         sun.generate(10);
 
         light = Light(0, sunCenter, sunLight, false);
 
-        satellitePos = Vector(2.8f, -1.4, -2);
+        Vector satellitePos = Vector(2.8f, -1.4, -2);
         satellite = Satellite(satellitePos, 0.6f);
         satellite.generate();
 
-        stationPos = Vector(0.5f, 0.0f, -3.0f);
-        stationRotate = Vector(0.0f, 0, 20);
-        station = Station(stationPos, stationRotate, Vector(1.0, 1.0, 1.0));
+        Vector stationPos = Vector(0.5f, 0.0f, -3.0f);
+        float stationEarthDistance = (stationPos - earthCenter).length();
+        float stationRotation = 0;
+        station = Station(stationPos, stationRotation, Vector(1.0, 1.0, 1.0));
         station.generate();
 
-        eye = Vector(0.0f, 0.0f, 6.0f);
+        eye = Vector(0.0f, 0.0f, 7.0f);
         lookat = stationPos;
-        createCamera();
+        setCamera();
     };
 
     void render() {
@@ -1283,7 +1326,7 @@ public:
         space.draw();
         light.enable();
 
-        enableThrowBackCW();
+        //enableThrowBackCW();
         earth.draw();
         disableThrowBack();
 
@@ -1306,6 +1349,33 @@ public:
     void generateTextures() {
         planetTexture.generate();
         space.generate();
+    }
+
+    void simulateWorldSince(long tstart) {
+        float maxFps = 100;
+        float dt = 1000.0f / maxFps;
+        for (float ts = tstart; ts < currentTime; ts += dt) {
+            rotateStation(ts);
+            moveStation(ts);
+
+            lookat = station.getPos();
+
+
+            //radius = 29;
+            //newX = (float) (earth.getCenter().x - radius * cos(angle));
+            //newZ = (float) (earth.getCenter().z + radius * sin(angle));
+            //eye = Vector(newX, eye.y, newZ);
+            eye = lookat + Vector(0, 0, 10);
+            setCamera();
+        }
+    }
+
+    long getTime() const {
+        return currentTime;
+    }
+
+    void setTime(long currentTime) {
+        Scene::currentTime = currentTime;
     }
 } scene;
 
@@ -1350,7 +1420,10 @@ void onMouseMotion(int x, int y) {
 
 // `Idle' esemenykezelo, jelzi, hogy az ido telik, az Idle esemenyek frekvenciajara csak a 0 a garantalt minimalis ertek
 void onIdle() {
-    long time = glutGet(GLUT_ELAPSED_TIME);        // program inditasa ota eltelt ido
+    long oldTime = scene.getTime();
+    scene.setTime(glutGet(GLUT_ELAPSED_TIME));        // program inditasa ota eltelt ido
+    scene.simulateWorldSince(oldTime);
+    glutPostRedisplay();
 
 }
 
