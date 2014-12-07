@@ -925,39 +925,37 @@ public:
     }
 };
 
-class FramedRectangle : public Object {
-    Vector pos, rotate;
+class Rectangle : public Object {
     Vector a, b, c, d;
-    Vector aInside, bInside, cInside, dInside;
-    Material frameMat, insideMat;
+    Vector normal;
 
-    void drawFrame() {
-        frameMat.setOGL();
+public:
+    Rectangle() {
+    }
+
+    Rectangle(Material const &material, Vector const &a, Vector const &b, Vector const &c, Vector const &d, Vector const &normal)
+            : Object(material), a(a), b(b), c(c), d(d), normal(normal) {
+    }
+
+    void draw() {
+        // TODO tesellation
+        material.setOGL();
         glBegin(GL_QUADS);
-        glNormal(Vector(0, 0, 1));
+        glNormal(normal);
         glVertex(a);
-        glNormal(Vector(0, 0, 1));
+        glNormal(normal);
         glVertex(b);
-        glNormal(Vector(0, 0, 1));
+        glNormal(normal);
         glVertex(c);
-        glNormal(Vector(0, 0, 1));
+        glNormal(normal);
         glVertex(d);
         glEnd();
     }
+};
 
-    void drawInside() {
-        insideMat.setOGL();
-        glBegin(GL_QUADS);
-        glNormal(Vector(0, 0, 1));
-        glVertex(aInside);
-        glNormal(Vector(0, 0, 1));
-        glVertex(bInside);
-        glNormal(Vector(0, 0, 1));
-        glVertex(cInside);
-        glNormal(Vector(0, 0, 1));
-        glVertex(dInside);
-        glEnd();
-    }
+class FramedRectangle : public Object {
+    Vector pos, rotate;
+    Rectangle frame, inside, back;
 
 public:
     FramedRectangle() {
@@ -966,13 +964,11 @@ public:
 
     FramedRectangle(Vector const &bottomLeft, Vector const &topRight, Vector const &pos, Vector const &rotate)
             : pos(pos), rotate(rotate) {
-        frameMat = chrome;
-        insideMat = solarPanelMaterial;
 
-        b = bottomLeft;
-        d = topRight;
-        a = Vector(bottomLeft.x, topRight.y);
-        c = Vector(topRight.x, bottomLeft.y);
+        Vector b = bottomLeft;
+        Vector d = topRight;
+        Vector a = Vector(bottomLeft.x, topRight.y);
+        Vector c = Vector(topRight.x, bottomLeft.y);
 
         Vector ad = d - a;
         Vector ab = b - a;
@@ -984,21 +980,29 @@ public:
         Vector dc = c - d;
         float frameSize = (ad.length() + ab.length() + bc.length() + cd.length()) / 4.0f / 20.0f;
 
-        aInside = a + ad.normalized() * frameSize + ab.normalized() * frameSize + Vector(0, 0, 0.05f);
-        bInside = b + ba.normalized() * frameSize + bc.normalized() * frameSize + Vector(0, 0, 0.05f);
-        cInside = c + cd.normalized() * frameSize + cb.normalized() * frameSize + Vector(0, 0, 0.05f);
-        dInside = d + da.normalized() * frameSize + dc.normalized() * frameSize + Vector(0, 0, 0.05f);
+        Vector aInside = a + ad.normalized() * frameSize + ab.normalized() * frameSize + Vector(0, 0, 0.05f);
+        Vector bInside = b + ba.normalized() * frameSize + bc.normalized() * frameSize + Vector(0, 0, 0.05f);
+        Vector cInside = c + cd.normalized() * frameSize + cb.normalized() * frameSize + Vector(0, 0, 0.05f);
+        Vector dInside = d + da.normalized() * frameSize + dc.normalized() * frameSize + Vector(0, 0, 0.05f);
+
+        Vector aBack = a - Vector(0, 0, 0.05f);
+        Vector bBack = b - Vector(0, 0, 0.05f);
+        Vector cBack = c - Vector(0, 0, 0.05f);
+        Vector dBack = d - Vector(0, 0, 0.05f);
+
+        frame = Rectangle(chrome, a, b, c, d, Vector(0, 0, 1));
+        inside = Rectangle(solarPanelMaterial, aInside, bInside, cInside, dInside, Vector(0, 0, 1));
+        back = Rectangle(chrome, aBack, bBack, cBack, dBack, Vector(0, 0, -1));
+
     }
 
     void draw() {
         glPushMatrix();
         glTranslatef(pos.x, pos.y, pos.z);
-        //glRotatef(rotate.x, 1, 0, 0);
-        //glRotatef(rotate.y, 0, 1, 0);
-        //glRotatef(rotate.z, 0, 0, 1);
 
-        drawFrame();
-        drawInside();
+        frame.draw();
+        inside.draw();
+        back.draw();
 
         glPopMatrix();
     }
@@ -1101,12 +1105,11 @@ public:
         glRotatef(rotationAngle, 0, 1, 0);
         glScalef(scale.x, scale.y, scale.z);
 
-        //enableThrowBackCCW();
-        disableThrowBack();
+        enableThrowBackCCW();
         rotatedSpline.draw();
+        disableThrowBack();
         solarPanel1.draw();
         solarPanel2.draw();
-        disableThrowBack();
         glPopMatrix();
     }
 
@@ -1326,7 +1329,7 @@ public:
         space.draw();
         light.enable();
 
-        //enableThrowBackCW();
+        enableThrowBackCW();
         earth.draw();
         disableThrowBack();
 
