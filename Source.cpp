@@ -548,12 +548,15 @@ public:
 };
 
 class RotatedSpline : public Object {
-    CatmullRomSpline spline;
     Material darkMaterial;
     Vector pos, rotate, scale;
 
     const static int splineRes = 200;
     const static int circleRes = 150;
+    const static int vertexNr = (splineRes + 1) * (circleRes + 1) * 4;
+
+    Vector vertexes[vertexNr];
+    Vector normals[vertexNr];
 
     float circleDelta;
     float splineDelta;
@@ -563,11 +566,11 @@ class RotatedSpline : public Object {
     Vector holeMiddle;
     float holeRadius;
 
-    Vector getSurfacePoint(Vector splinePoint, float angle) const {
+    Vector getSurfacePoint(Vector const &splinePoint, float angle) const {
         return Vector(splinePoint.x, splinePoint.y * cosf(angle), splinePoint.y * sinf(angle));
     }
 
-    Vector getNormal(Vector currentP, float t, float angle, Vector currentSplineP) const {
+    Vector getNormal(Vector const &currentP, float t, float angle, Vector const &currentSplineP, CatmullRomSpline const &spline) const {
         // currentP-hez képest a körön előző pont
         Vector prevSurfacePointCircle = getSurfacePoint(currentSplineP, angle - circleDelta);
 
@@ -602,54 +605,11 @@ class RotatedSpline : public Object {
         return ((comp1 + comp2 + comp3 + comp4) / 4.0f).normalized();
     }
 
-    void debugNormals() {
-        for (float t = firstT; t < lastT; t += splineDelta) {
-            size_t prevCp = 0;
-            while (spline.getCp(prevCp + 1).t < t)
-                prevCp++;
-
-            Vector splineP1 = spline.getPos(t, prevCp);
-            Vector splineP2 = spline.getPos(t + splineDelta, prevCp);
-
-            for (int i = 0; i <= circleRes; i++) {
-                float angle = i * circleDelta;
-                Vector rightBottom = getSurfacePoint(splineP1, angle);
-                Vector rightBottomNormal = getNormal(rightBottom, t, angle, splineP1);
-                Vector rightTop = getSurfacePoint(splineP1, angle + circleDelta);
-                Vector rightTopNormal = getNormal(rightTop, t, angle + circleDelta, splineP1);
-                Vector leftBottom = getSurfacePoint(splineP2, angle);
-                Vector leftBottomNormal = getNormal(leftBottom, t + splineDelta, angle, splineP2);
-                Vector leftTop = getSurfacePoint(splineP2, angle + circleDelta);
-                Vector leftTopNormal = getNormal(leftTop, t + splineDelta, angle + circleDelta, splineP2);
-
-                glBegin(GL_LINE_STRIP);
-                glVertex(leftBottom);
-                glVertex(leftBottom + leftBottomNormal * 0.2);
-                glEnd();
-
-                glBegin(GL_LINE_STRIP);
-                glVertex(rightBottom);
-                glVertex(rightBottom + rightBottomNormal * 0.2);
-                glEnd();
-
-                glBegin(GL_LINE_STRIP);
-                glVertex(leftTop);
-                glVertex(leftTop + leftTopNormal * 0.2);
-                glEnd();
-
-                glBegin(GL_LINE_STRIP);
-                glVertex(rightTop);
-                glVertex(rightTop + rightTopNormal * 0.2);
-                glEnd();
-            }
-        }
-    }
-
-    bool isInsideHole(Vector p1) const {
+    bool isInsideHole(Vector const &p1) const {
         return ((p1 - holeMiddle).length() < holeRadius);
     }
 
-    bool areInsideHole(Vector p1, Vector p2, Vector p3, Vector p4) const {
+    bool areInsideHole(Vector const &p1, Vector const &p2, Vector const &p3, Vector const &p4) const {
         return (isInsideHole(p1) && isInsideHole(p2) && isInsideHole(p3) && isInsideHole(p4));
     }
 
@@ -659,6 +619,41 @@ public:
 
     RotatedSpline(Vector const &pos, Vector const &rotate, Vector const &scale, Material material)
             : Object(material), pos(pos), rotate(rotate), scale(scale) {
+        darkMaterial = material * 0.01f;
+    }
+
+    void draw() {
+        material.setOGL();
+
+        glPushMatrix();
+        glTranslatef(pos.x, pos.y, pos.z);
+        glRotatef(rotate.x, 1, 0, 0);
+        glRotatef(rotate.y, 0, 1, 0);
+        glRotatef(rotate.z, 0, 0, 1);
+        glScalef(scale.x, scale.y, scale.z);
+
+        glBegin(GL_QUAD_STRIP);
+        for (size_t i = 0; i < vertexNr - 3; i += 4) {
+            if (areInsideHole(vertexes[i], vertexes[i + 1], vertexes[i + 2], vertexes[i + 3]))
+                darkMaterial.setOGL();
+            else
+                material.setOGL();
+
+            glNormal(normals[i]);
+            glVertex(vertexes[i]);
+            glNormal(normals[i + 1]);
+            glVertex(vertexes[i + 1]);
+            glNormal(normals[i + 2]);
+            glVertex(vertexes[i + 2]);
+            glNormal(normals[i + 3]);
+            glVertex(vertexes[i + 3]);
+        }
+        glEnd();
+        glPopMatrix();
+    }
+
+    void generate() {
+        CatmullRomSpline spline;
         spline.addControlPoint(Vector((31.0f - 45.85f) * 10.0f, 42.6) / 100.0f, 0.863);
         spline.addControlPoint(Vector((35.9f - 45.85f) * 10.0f, 50.0) / 100.0f, 1.367);
         spline.addControlPoint(Vector((39.6f - 45.85f) * 10.0f, 42.4) / 100.0f, 1.853);
@@ -678,20 +673,8 @@ public:
         lastT = spline.getLastCp().t;
         splineDelta = (lastT - firstT) / (float) splineRes;
 
-        darkMaterial = material * 0.01f;
-    }
 
-    void draw() {
-        material.setOGL();
-
-        glPushMatrix();
-        glTranslatef(pos.x, pos.y, pos.z);
-        glRotatef(rotate.x, 1, 0, 0);
-        glRotatef(rotate.y, 0, 1, 0);
-        glRotatef(rotate.z, 0, 0, 1);
-        glScalef(scale.x, scale.y, scale.z);
-
-        glBegin(GL_QUAD_STRIP);
+        size_t currentVertex = 0;
         for (float t = firstT; t < lastT; t += splineDelta) {
             size_t prevCp = 0;
             while (spline.getCp(prevCp + 1).t < t)
@@ -702,31 +685,24 @@ public:
             for (int i = 0; i <= circleRes; i++) {
                 float angle = i * circleDelta;
                 Vector rightBottom = getSurfacePoint(splineP1, angle);
-                Vector rightBottomNormal = getNormal(rightBottom, t, angle, splineP1);
+                Vector rightBottomNormal = getNormal(rightBottom, t, angle, splineP1, spline);
                 Vector rightTop = getSurfacePoint(splineP1, angle + circleDelta);
-                Vector rightTopNormal = getNormal(rightTop, t, angle + circleDelta, splineP1);
+                Vector rightTopNormal = getNormal(rightTop, t, angle + circleDelta, splineP1, spline);
                 Vector leftBottom = getSurfacePoint(splineP2, angle);
-                Vector leftBottomNormal = getNormal(leftBottom, t + splineDelta, angle, splineP2);
+                Vector leftBottomNormal = getNormal(leftBottom, t + splineDelta, angle, splineP2, spline);
                 Vector leftTop = getSurfacePoint(splineP2, angle + circleDelta);
-                Vector leftTopNormal = getNormal(leftTop, t + splineDelta, angle + circleDelta, splineP2);
+                Vector leftTopNormal = getNormal(leftTop, t + splineDelta, angle + circleDelta, splineP2, spline);
 
-                material.setOGL();
-                if (areInsideHole(leftBottom, leftTop, rightBottom, rightTop))
-                    darkMaterial.setOGL();
-
-                glNormal(leftBottomNormal);
-                glVertex(leftBottom);
-                glNormal(rightBottomNormal);
-                glVertex(rightBottom);
-                glNormal(leftTopNormal);
-                glVertex(leftTop);
-                glNormal(rightTopNormal);
-                glVertex(rightTop);
+                normals[currentVertex] = leftBottomNormal;
+                vertexes[currentVertex++] = leftBottom;
+                normals[currentVertex] = rightBottomNormal;
+                vertexes[currentVertex++] = rightBottom;
+                normals[currentVertex] = leftTopNormal;
+                vertexes[currentVertex++] = leftTop;
+                normals[currentVertex] = rightTopNormal;
+                vertexes[currentVertex++] = rightTop;
             }
         }
-        glEnd();
-        // debugNormals();
-        glPopMatrix();
     }
 };
 
@@ -1042,13 +1018,18 @@ public:
         glRotatef(rotate.z, 0, 0, 1);
         glScalef(scale.x, scale.y, scale.z);
 
-        enableThrowBackCCW();
+        //enableThrowBackCCW();
+        disableThrowBack();
         rotatedSpline.draw();
         solarPanel1.draw();
         solarPanel2.draw();
         disableThrowBack();
 
         glPopMatrix();
+    }
+
+    void generate() {
+        rotatedSpline.generate();
     }
 
 };
@@ -1218,6 +1199,7 @@ public:
 
         satellite = Satellite(satellitePos, 0.6f);
         station = Station(stationPos, stationRotate, Vector(1.0, 1.0, 1.0));
+        station.generate();
 
         eye = Vector(0.0f, 0.0f, 6.0f);
         lookat = stationPos;
