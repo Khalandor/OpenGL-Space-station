@@ -692,14 +692,15 @@ public:
 
             for (int i = 0; i <= circleRes; i++) {
                 float angle = i * circleDelta;
-                Vector rightBottom = getSurfacePoint(splineP1, angle);
-                Vector rightBottomNormal = getNormal(rightBottom, t, angle, splineP1, spline);
-                Vector rightTop = getSurfacePoint(splineP1, angle + circleDelta);
-                Vector rightTopNormal = getNormal(rightTop, t, angle + circleDelta, splineP1, spline);
-                Vector leftBottom = getSurfacePoint(splineP2, angle);
-                Vector leftBottomNormal = getNormal(leftBottom, t + splineDelta, angle, splineP2, spline);
-                Vector leftTop = getSurfacePoint(splineP2, angle + circleDelta);
-                Vector leftTopNormal = getNormal(leftTop, t + splineDelta, angle + circleDelta, splineP2, spline);
+                Vector leftBottom = getSurfacePoint(splineP1, angle);
+                Vector leftTop = getSurfacePoint(splineP1, angle + circleDelta);
+                Vector rightBottom = getSurfacePoint(splineP2, angle);
+                Vector rightTop = getSurfacePoint(splineP2, angle + circleDelta);
+
+                Vector leftBottomNormal = getNormal(leftBottom, t, angle, splineP1, spline);
+                Vector leftTopNormal = getNormal(leftTop, t, angle + circleDelta, splineP1, spline);
+                Vector rightBottomNormal = getNormal(rightBottom, t + splineDelta, angle, splineP2, spline);
+                Vector rightTopNormal = getNormal(rightTop, t + splineDelta, angle + circleDelta, splineP2, spline);
 
                 normals[currentVertex] = leftBottomNormal;
                 vertexes[currentVertex++] = leftBottom;
@@ -1115,7 +1116,7 @@ public:
         glRotatef(20, 0, 0, 1);
         glRotatef(rotationAngleDeg, 0, 1, 0);
 
-        enableThrowBackCCW();
+        enableThrowBackCW();
         rotatedSpline.draw();
         disableThrowBack();
         solarPanel1.draw();
