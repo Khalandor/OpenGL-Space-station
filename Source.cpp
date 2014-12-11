@@ -850,7 +850,6 @@ public:
             }
     }
 
-
     Vector const &getCenter() const {
         return center;
     }
@@ -1081,8 +1080,13 @@ public:
 };
 
 class Station : public Object {
-    Vector pos, scale;
-    float rotationAngle;
+    Vector pos;
+
+    float orbitAngleRad, orbitDistance;
+    Vector orbitMiddle;
+
+    float rotationAngleDeg;
+
     RotatedSpline rotatedSpline;
     FramedRectangle solarPanel1;
     FramedRectangle solarPanel2;
@@ -1091,8 +1095,15 @@ public:
     Station() {
     }
 
-    Station(Vector const &pos, float rotationAngle, Vector const &scale)
-            : pos(pos), rotationAngle(rotationAngle), scale(scale) {
+    Station(Ellipsoid const &planet, float orbitDistance, float orbitAngle)
+            : orbitDistance(orbitDistance), orbitAngleRad(orbitAngle) {
+        rotationAngleDeg = 0.0f;
+        orbitMiddle = planet.getCenter();
+
+        float posX = (float) (orbitMiddle.x - orbitDistance * cos(orbitAngle));
+        float posZ = (float) (orbitMiddle.z + orbitDistance * sin(orbitAngle));
+        pos = Vector(posX, 0.0f, posZ);
+
         solarPanel1 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(0.5, 0.0, 0.0), Vector(-20.0, 0.0, 0.0));
         solarPanel2 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(-2.5, 0.0, 0.0), Vector(-20.0, 0.0, 0.0));
         rotatedSpline = RotatedSpline(Vector(0.0f, 0.0f, 0.0f), Vector(1, 1, 1), chrome);
@@ -1102,8 +1113,7 @@ public:
         glPushMatrix();
         glTranslatef(pos.x, pos.y, pos.z);
         glRotatef(20, 0, 0, 1);
-        glRotatef(rotationAngle, 0, 1, 0);
-        glScalef(scale.x, scale.y, scale.z);
+        glRotatef(rotationAngleDeg, 0, 1, 0);
 
         enableThrowBackCCW();
         rotatedSpline.draw();
@@ -1117,7 +1127,6 @@ public:
         rotatedSpline.generate(200, 150);
     }
 
-
     Vector const &getPos() const {
         return pos;
     }
@@ -1126,13 +1135,15 @@ public:
         Station::pos = pos;
     }
 
-
-    float getRotationAngle() const {
-        return rotationAngle;
+    void setRotationAngleDeg(float rotationAngle) {
+        Station::rotationAngleDeg = rotationAngle;
     }
 
-    void setRotationAngle(float rotationAngle) {
-        Station::rotationAngle = rotationAngle;
+    void setOrbitAngleRad(float orbitAngle) {
+        Station::orbitAngleRad = orbitAngle;
+        float posX = (float) (orbitMiddle.x - orbitDistance * cos(orbitAngle));
+        float posZ = (float) (orbitMiddle.z + orbitDistance * sin(orbitAngle));
+        pos = Vector(posX, 0.0f, posZ);
     }
 };
 
@@ -1260,6 +1271,11 @@ class Scene {
     PlanetTexture planetTexture;
     Space space;
 
+    long orbitTime;
+    float orbitStartAngle;
+
+    long rotationTime;
+
     void setCamera() {
         Vector up(0, 1, 0);
         float zNear = 0.1;
@@ -1274,21 +1290,19 @@ class Scene {
     }
 
     void moveStation(float ts) {
-        float orbitTime = 200000.0;
         float periodsDone = floorf(ts / orbitTime);
         float timePastInPeriod = ts - (periodsDone * orbitTime);
         float periodPart = timePastInPeriod / orbitTime;
-        float angle = 2 * PI * periodPart + degreeToRad(40);
-
-        float radius = 20;
-        float newX = (float) (earth.getCenter().x - radius * cos(angle));
-        float newZ = (float) (earth.getCenter().z + radius * sin(angle));
-
-        station.setPos(Vector(newX, station.getPos().y, newZ));
+        float angle = 2 * PI * periodPart + orbitStartAngle;
+        station.setOrbitAngleRad(angle);
     }
 
     void rotateStation(float ts) {
-        station.setRotationAngle(station.getRotationAngle() + 0.1);
+        float periodsDone = floorf(ts / rotationTime);
+        float timePastInPeriod = ts - (periodsDone * rotationTime);
+        float periodPart = timePastInPeriod / rotationTime;
+        float angle = 360 * periodPart;
+        station.setRotationAngleDeg(angle);
     }
 
 public:
@@ -1313,14 +1327,15 @@ public:
         satellite = Satellite(satellitePos, 0.6f);
         satellite.generate();
 
-        Vector stationPos = Vector(0.5f, 0.0f, -3.0f);
-        float stationEarthDistance = (stationPos - earthCenter).length();
-        float stationRotation = 0;
-        station = Station(stationPos, stationRotation, Vector(1.0, 1.0, 1.0));
+        orbitTime = 200000;
+        orbitStartAngle = degreeToRad(60);
+        rotationTime = 10000;
+        float orbitDistance = 20;
+        station = Station(earth, orbitDistance, orbitStartAngle);
         station.generate();
 
         eye = Vector(0.0f, 0.0f, 7.0f);
-        lookat = stationPos;
+        lookat = station.getPos();
         setCamera();
     };
 
@@ -1354,23 +1369,21 @@ public:
         space.generate();
     }
 
+    void simulateWorldAt(long time) {
+        rotateStation(time);
+        moveStation(time);
+        lookat = station.getPos();
+        eye = lookat + Vector(0, 0, 10);
+        setCamera();
+    }
+
     void simulateWorldSince(long tstart) {
-        float maxFps = 100;
+        float maxFps = 60;
         float dt = 1000.0f / maxFps;
         for (float ts = tstart; ts < currentTime; ts += dt) {
-            rotateStation(ts);
-            moveStation(ts);
-
-            lookat = station.getPos();
-
-
-            //radius = 29;
-            //newX = (float) (earth.getCenter().x - radius * cos(angle));
-            //newZ = (float) (earth.getCenter().z + radius * sin(angle));
-            //eye = Vector(newX, eye.y, newZ);
-            eye = lookat + Vector(0, 0, 10);
-            setCamera();
+            simulateWorldAt(ts);
         }
+        simulateWorldAt(currentTime);
     }
 
     long getTime() const {
