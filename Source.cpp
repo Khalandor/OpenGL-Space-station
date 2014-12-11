@@ -1124,7 +1124,7 @@ public:
     }
 
     void generate() {
-        rotatedSpline.generate(200, 150);
+        rotatedSpline.generate(100, 100);
     }
 
     Vector const &getPos() const {
