@@ -553,7 +553,6 @@ public:
 
 class RotatedSpline : public Object {
     Material darkMaterial;
-    Vector pos, rotate, scale;
 
     int vertexNr;
     Vector *vertexes;
@@ -568,7 +567,7 @@ class RotatedSpline : public Object {
     float holeRadius;
 
     Vector getSurfacePoint(Vector const &splinePoint, float angle) const {
-        return Vector(splinePoint.x, splinePoint.y * cosf(angle), splinePoint.y * sinf(angle));
+        return Vector(splinePoint.x * sinf(angle), splinePoint.y, splinePoint.x * cosf(angle));
     }
 
     Vector getNormal(Vector const &currentP, float t, float angle, Vector const &currentSplineP, CatmullRomSpline const &spline) const {
@@ -620,8 +619,8 @@ public:
         normals = NULL;
     }
 
-    RotatedSpline(Vector const &pos, Vector const &scale, Material material)
-            : Object(material), pos(pos), rotate(rotate), scale(scale) {
+    RotatedSpline(Material const &material)
+            : Object(material) {
         vertexes = NULL;
         normals = NULL;
         darkMaterial = material * 0.01f;
@@ -630,14 +629,8 @@ public:
     void draw() {
         material.setOGL();
 
-        glPushMatrix();
-        glTranslatef(pos.x, pos.y, pos.z);
-        // függőleges
-        glRotatef(90, 0, 0, 1);
-        glScalef(scale.x, scale.y, scale.z);
-
         glBegin(GL_QUAD_STRIP);
-        for (size_t i = 0; i < vertexNr - 3; i += 4) {
+        for (size_t i = 0; i < vertexNr; i += 4) {
             if (areInsideHole(vertexes[i], vertexes[i + 1], vertexes[i + 2], vertexes[i + 3]))
                 darkMaterial.setOGL();
             else
@@ -653,27 +646,27 @@ public:
             glVertex(vertexes[i + 3]);
         }
         glEnd();
-        glPopMatrix();
+
     }
 
     void generate(int splineRes, int circleRes) {
-        vertexNr = (splineRes + 1) * (circleRes + 1) * 4;
+        vertexNr = (splineRes) * (circleRes + 1) * 2;
         vertexes = new Vector[vertexNr];
         normals = new Vector[vertexNr];
 
         CatmullRomSpline spline;
-        spline.addControlPoint(Vector(-1.485f, 0.426), 0.863);
-        spline.addControlPoint(Vector(-0.995f, 0.500), 1.367);
-        spline.addControlPoint(Vector(-0.625f, 0.424), 1.853);
-        spline.addControlPoint(Vector(-0.305f, 0.509), 2.370);
-        spline.addControlPoint(Vector(0.000f, 0.432), 2.910);
-        spline.addControlPoint(Vector(0.425f, 0.506), 3.490);
-        spline.addControlPoint(Vector(0.785f, 0.441), 4.050);
-        spline.addControlPoint(Vector(1.085f, 0.505), 4.640);
-        spline.addControlPoint(Vector(1.485f, 0.430), 5.220);
+        spline.addControlPoint(Vector(0.426, -1.485f), 0.863);
+        spline.addControlPoint(Vector(0.500, -0.995f), 1.367);
+        spline.addControlPoint(Vector(0.424, -0.625f), 1.853);
+        spline.addControlPoint(Vector(0.509, -0.305f), 2.370);
+        spline.addControlPoint(Vector(0.432, 0.000f), 2.910);
+        spline.addControlPoint(Vector(0.506, 0.425f), 3.490);
+        spline.addControlPoint(Vector(0.441, 0.785f), 4.050);
+        spline.addControlPoint(Vector(0.505, 1.085f), 4.640);
+        spline.addControlPoint(Vector(0.430, 1.485f), 5.220);
         spline.computeV();
 
-        holeMiddle = getSurfacePoint(Vector(0.0f, 43.2) / 100.0f, PI / 2.0f);
+        holeMiddle = getSurfacePoint(Vector(0.432, 0.000f), 0);
         holeRadius = 0.4f;
 
         circleDelta = 2 * PI / circleRes;
@@ -687,29 +680,21 @@ public:
             size_t prevCp = 0;
             while (spline.getCp(prevCp + 1).t < t)
                 prevCp++;
+
             Vector splineP1 = spline.getPos(t, prevCp);
             Vector splineP2 = spline.getPos(t + splineDelta, prevCp);
 
             for (int i = 0; i <= circleRes; i++) {
                 float angle = i * circleDelta;
-                Vector leftBottom = getSurfacePoint(splineP1, angle);
-                Vector leftTop = getSurfacePoint(splineP1, angle + circleDelta);
-                Vector rightBottom = getSurfacePoint(splineP2, angle);
-                Vector rightTop = getSurfacePoint(splineP2, angle + circleDelta);
+                Vector bottom = getSurfacePoint(splineP1, angle);
+                Vector top = getSurfacePoint(splineP2, angle);
+                Vector bottomNormal = getNormal(bottom, t, angle, splineP1, spline);
+                Vector topNormal = getNormal(top, t + splineDelta, angle, splineP2, spline);
 
-                Vector leftBottomNormal = getNormal(leftBottom, t, angle, splineP1, spline);
-                Vector leftTopNormal = getNormal(leftTop, t, angle + circleDelta, splineP1, spline);
-                Vector rightBottomNormal = getNormal(rightBottom, t + splineDelta, angle, splineP2, spline);
-                Vector rightTopNormal = getNormal(rightTop, t + splineDelta, angle + circleDelta, splineP2, spline);
-
-                normals[currentVertex] = leftBottomNormal;
-                vertexes[currentVertex++] = leftBottom;
-                normals[currentVertex] = rightBottomNormal;
-                vertexes[currentVertex++] = rightBottom;
-                normals[currentVertex] = leftTopNormal;
-                vertexes[currentVertex++] = leftTop;
-                normals[currentVertex] = rightTopNormal;
-                vertexes[currentVertex++] = rightTop;
+                normals[currentVertex] = topNormal;
+                vertexes[currentVertex++] = top;
+                normals[currentVertex] = bottomNormal;
+                vertexes[currentVertex++] = bottom;
             }
         }
     }
@@ -1038,12 +1023,21 @@ class Satellite : public Object {
 
     Ellipsoid satelliteBody;
     Cone jetLeft, jetRight, jetBack, jetFront, jetBottom, jetTop;
+    bool leftLit, rightLit, backLit, frontLit, bottomLit, topLit;
 
 public:
     Satellite() {
     }
 
-    Satellite(Vector const &pos, float size) : pos(pos), size(size) {
+    Satellite(Vector const &pos, float size)
+            : pos(pos),
+              size(size),
+              leftLit(false),
+              rightLit(false),
+              backLit(false),
+              frontLit(false),
+              bottomLit(false),
+              topLit(false) {
         satelliteBody = Ellipsoid(size, size, size, chrome, pos, false);
         jetLeft = Cone(size / 1.5f, size, pos + Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), chrome);
         jetRight = Cone(size / 1.5f, size, pos + Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), chrome);
@@ -1107,7 +1101,7 @@ public:
 
         solarPanel1 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(0.5, 0.0, 0.0), Vector(-20.0, 0.0, 0.0));
         solarPanel2 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(-2.5, 0.0, 0.0), Vector(-20.0, 0.0, 0.0));
-        rotatedSpline = RotatedSpline(Vector(0.0f, 0.0f, 0.0f), Vector(1, 1, 1), chrome);
+        rotatedSpline = RotatedSpline(chrome);
     }
 
     void draw() {
@@ -1116,7 +1110,7 @@ public:
         glRotatef(20, 0, 0, 1);
         glRotatef(rotationAngleDeg, 0, 1, 0);
 
-        enableThrowBackCW();
+        enableThrowBackCCW();
         rotatedSpline.draw();
         disableThrowBack();
         solarPanel1.draw();
