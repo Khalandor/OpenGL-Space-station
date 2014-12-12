@@ -1019,6 +1019,7 @@ public:
 
 class Jet : public Object {
     Cone jetOutside;
+    Vector pos;
     // Cone jetInside, fire;
     bool lit;
     long startTime;
@@ -1028,8 +1029,8 @@ public:
     Jet() : Object() {
     }
 
-    Jet(float size, Vector const &pos, Vector const &rotation) : Object() {
-        jetOutside = Cone(size / 1.5f, size, pos, rotation, chrome);
+    Jet(float size, Vector const &pos, Vector const &rotation) : Object(), pos(pos) {
+        jetOutside = Cone(size, size, pos, rotation, chrome);
         lit = false;
     }
 
@@ -1049,10 +1050,16 @@ public:
     void setStartTime(long startTime) {
         Jet::startTime = startTime;
     }
+
+
+    Vector const &getPos() const {
+        return pos;
+    }
 };
 
 class Satellite : public Object {
     Vector pos;
+    Vector v;
     float size;
 
     Ellipsoid satelliteBody;
@@ -1065,28 +1072,31 @@ public:
     Satellite(Vector const &pos, float size)
             : pos(pos),
               size(size) {
-        satelliteBody = Ellipsoid(size, size, size, chrome, pos, false);
+        satelliteBody = Ellipsoid(size, size, size, chrome, Vector(0, 0, 0), false);
 
-        jetLeft = Jet(size, pos + Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f));
-        jetRight = Jet(size, pos + Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f));
-        jetBack = Jet(size, pos + Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f));
-        jetFront = Jet(size, pos + Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f));
-        jetBottom = Jet(size, pos + Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f));
-        jetTop = Jet(size, pos + Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f));
+        jetLeft = Jet(size, Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f));
+        jetRight = Jet(size, Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f));
+        jetBack = Jet(size, Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f));
+        jetFront = Jet(size, Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f));
+        jetBottom = Jet(size, Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f));
+        jetTop = Jet(size, Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f));
+        v = Vector(0, 0, 0);
     }
 
     void draw() {
         glPushMatrix();
+        glTranslatef(pos.x, pos.y, pos.z);
+
         enableThrowBackCW();
         satelliteBody.draw();
         jetLeft.draw();
         jetRight.draw();
         jetTop.draw();
         jetBottom.draw();
-        jetBack.draw();
-        enableThrowBackCCW();
-        jetFront.draw();
         disableThrowBack();
+        jetBack.draw();
+        jetFront.draw();
+
         glPopMatrix();
     }
 
@@ -1101,6 +1111,12 @@ public:
         jetFront.generate(coneResolution);
     }
 
+    void startJet(Jet *jet, long time) {
+        jet->setStartTime(time);
+        jet->setLit(true);
+        Vector impulse = jet->getPos() * (-1);
+        v = v + impulse;
+    }
 
     Jet *getJetLeft() {
         return &jetLeft;
@@ -1125,7 +1141,20 @@ public:
     Jet *getJetTop() {
         return &jetTop;
     }
-};
+
+
+    Vector const &getPos() const {
+        return pos;
+    }
+
+    void setPos(Vector const &pos) {
+        Satellite::pos = pos;
+    }
+
+    Vector const &getV() const {
+        return v;
+    }
+} satellite;
 
 class Station : public Object {
     Vector pos;
@@ -1297,7 +1326,7 @@ public:
     }
 };
 
-Satellite satellite;
+
 class Scene {
     long currentTime;
 
@@ -1372,7 +1401,7 @@ public:
         station.generate();
 
         Vector satellitePos = station.getPos() + Vector(1, -1, 2);
-        satellite = Satellite(satellitePos, 0.6f);
+        satellite = Satellite(satellitePos, 0.3f);
         satellite.generate();
 
         eye = Vector(0.0f, 0.0f, 7.0f);
@@ -1410,21 +1439,23 @@ public:
         space.generate();
     }
 
-    void simulateWorldAt(long time) {
-        rotateStation(time);
-        moveStation(time);
+    void simulateTimeSlice(long sliceStart, long sliceEnd) {
+        rotateStation(sliceEnd);
+        moveStation(sliceEnd);
         lookat = station.getPos();
         eye = lookat + Vector(0, 0, 10);
         setCamera();
+
+        long deltaT = sliceEnd - sliceStart;
+        satellite.setPos(satellite.getPos() + (satellite.getV() * deltaT / 1000));
     }
 
     void simulateWorldSince(long tstart) {
-        float maxFps = 60;
-        float dt = 1000.0f / maxFps;
-        for (float ts = tstart; ts < currentTime; ts += dt) {
-            simulateWorldAt(ts);
+        int dt = 25;
+        for (long sliceStart = tstart; sliceStart < currentTime; sliceStart += dt) {
+            float te = (currentTime < sliceStart + dt ? currentTime : sliceStart + dt);
+            simulateTimeSlice(sliceStart, te);
         }
-        simulateWorldAt(currentTime);
     }
 
     long getTime() const {
@@ -1433,10 +1464,6 @@ public:
 
     void setTime(long currentTime) {
         Scene::currentTime = currentTime;
-    }
-
-    void startJet(Jet *jet) {
-        //TODO: jet.starttime, satellite.addV
     }
 
 } scene;
@@ -1486,8 +1513,7 @@ void onKeyboard(unsigned char key, int x, int y) {
             jet = NULL;
     }
     if (jet != NULL)
-        scene.startJet(jet);
-
+        satellite.startJet(jet, scene.getTime());
 }
 
 // Billentyuzet esemenyeket lekezelo fuggveny (felengedes)
