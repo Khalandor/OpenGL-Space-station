@@ -809,8 +809,8 @@ public:
         float dv = (endV - startV) / resolution;
 
         size_t currentVertex = 0;
-        for (float u = startU; u < endU; u += du)
-            for (float v = startV; v < endV; v += dv) {
+        for (float u = startU; u <= endU; u += du)
+            for (float v = startV; v <= endV; v += dv) {
                 vertexes[currentVertex] = getSurfacePoint(u, v);
                 vertexes[currentVertex + 1] = getSurfacePoint(u + du, v);
                 normals[currentVertex] = getNormal(u, v);
@@ -1399,13 +1399,13 @@ public:
         satellite = Satellite(satellitePos, 0.3f);
         satellite.generate();
 
-        ropeLength = 10;
+        ropeLength = 12;
         kickDistance = 4;
-        kickSpeed = Vector(0, 0, 1) * 2;
+        kickSpeed = Vector(0, 0, 1);
         hasKicked = true;
 
         lookat = station.getPos();
-        eye = lookat;
+        eye = lookat + Vector(0, 0, 3);
         setCamera();
     };
 
@@ -1464,14 +1464,12 @@ public:
             eye = eye + kickSpeed * deltaT / 1000;
         }
 
-        //eye = lookat + Vector(0, 0, 10);
         setCamera();
 
     }
 
     void simulateWorldSince(long tstart) {
         int dt = 25;
-        //int dt = 2500;
         for (long sliceStart = tstart; sliceStart < currentTime; sliceStart += dt) {
             float te = (currentTime < sliceStart + dt ? currentTime : sliceStart + dt);
             simulateTimeSlice(sliceStart, te);
