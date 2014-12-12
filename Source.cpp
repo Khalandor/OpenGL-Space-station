@@ -1318,7 +1318,6 @@ public:
     }
 };
 
-
 class Scene {
     long currentTime;
 
@@ -1332,6 +1331,10 @@ class Scene {
     Station station;
     PlanetTexture planetTexture;
     Space space;
+
+    float ropeLength, kickDistance;
+    Vector kickSpeed;
+    bool hasKicked;
 
     long orbitTime;
     float orbitStartAngle;
@@ -1396,8 +1399,13 @@ public:
         satellite = Satellite(satellitePos, 0.3f);
         satellite.generate();
 
-        eye = Vector(0.0f, 0.0f, 7.0f);
+        ropeLength = 10;
+        kickDistance = 4;
+        kickSpeed = Vector(0, 0, 1) * 2;
+        hasKicked = true;
+
         lookat = station.getPos();
+        eye = lookat;
         setCamera();
     };
 
@@ -1434,16 +1442,36 @@ public:
     void simulateTimeSlice(long sliceStart, long sliceEnd) {
         rotateStation(sliceEnd);
         moveStation(sliceEnd);
-        lookat = station.getPos();
-        eye = lookat + Vector(0, 0, 10);
-        setCamera();
 
         long deltaT = sliceEnd - sliceStart;
         satellite.setPos(satellite.getPos() + (satellite.getV() * deltaT / 1000));
+
+        lookat = station.getPos();
+
+        Vector newEye = eye + (kickSpeed * deltaT / 1000);
+        float newDistance = (newEye - lookat).length();
+        if (newDistance < ropeLength) {
+            eye = newEye;
+            if (!hasKicked && newDistance < kickDistance) {
+                kickSpeed = (lookat - earth.getCenter()).normalized() * 2;
+                hasKicked = true;
+            }
+        }
+        else {
+            // TODO stretch
+            hasKicked = false;
+            kickSpeed = (lookat - eye).normalized() * 2;
+            eye = eye + kickSpeed * deltaT / 1000;
+        }
+
+        //eye = lookat + Vector(0, 0, 10);
+        setCamera();
+
     }
 
     void simulateWorldSince(long tstart) {
         int dt = 25;
+        //int dt = 2500;
         for (long sliceStart = tstart; sliceStart < currentTime; sliceStart += dt) {
             float te = (currentTime < sliceStart + dt ? currentTime : sliceStart + dt);
             simulateTimeSlice(sliceStart, te);
@@ -1479,8 +1507,6 @@ void onDisplay() {
 
 // Billentyuzet esemenyeket lekezelo fuggveny (lenyomas)
 void onKeyboard(unsigned char key, int x, int y) {
-    if (key == 'd') glutPostRedisplay();        // d beture rajzold ujra a kepet
-
     Jet *jet;
     switch (key) {
         case 'w' :
@@ -1504,8 +1530,11 @@ void onKeyboard(unsigned char key, int x, int y) {
         default:
             jet = NULL;
     }
-    if (jet != NULL)
+    if (jet != NULL) {
         satellite.startJet(jet, scene.getTime());
+        glutPostRedisplay();
+    }
+
 }
 
 // Billentyuzet esemenyeket lekezelo fuggveny (felengedes)
