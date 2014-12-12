@@ -1017,13 +1017,46 @@ public:
     }
 };
 
+class Jet : public Object {
+    Cone jetOutside;
+    // Cone jetInside, fire;
+    bool lit;
+    long startTime;
+
+
+public:
+    Jet() : Object() {
+    }
+
+    Jet(float size, Vector const &pos, Vector const &rotation) : Object() {
+        jetOutside = Cone(size / 1.5f, size, pos, rotation, chrome);
+        lit = false;
+    }
+
+    void draw() {
+        jetOutside.draw();
+    }
+
+    void generate(int resolution) {
+        jetOutside.generate(resolution);
+    }
+
+    void setLit(bool lit) {
+        Jet::lit = lit;
+    }
+
+
+    void setStartTime(long startTime) {
+        Jet::startTime = startTime;
+    }
+};
+
 class Satellite : public Object {
     Vector pos;
     float size;
 
     Ellipsoid satelliteBody;
-    Cone jetLeft, jetRight, jetBack, jetFront, jetBottom, jetTop;
-    bool leftLit, rightLit, backLit, frontLit, bottomLit, topLit;
+    Jet jetLeft, jetRight, jetBack, jetFront, jetBottom, jetTop;
 
 public:
     Satellite() {
@@ -1031,20 +1064,15 @@ public:
 
     Satellite(Vector const &pos, float size)
             : pos(pos),
-              size(size),
-              leftLit(false),
-              rightLit(false),
-              backLit(false),
-              frontLit(false),
-              bottomLit(false),
-              topLit(false) {
+              size(size) {
         satelliteBody = Ellipsoid(size, size, size, chrome, pos, false);
-        jetLeft = Cone(size / 1.5f, size, pos + Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), chrome);
-        jetRight = Cone(size / 1.5f, size, pos + Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), chrome);
-        jetBack = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), chrome);
-        jetFront = Cone(size / 1.5f, size, pos + Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), chrome);
-        jetBottom = Cone(size / 1.5f, size, pos + Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), chrome);
-        jetTop = Cone(size / 1.5f, size, pos + Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), chrome);
+
+        jetLeft = Jet(size, pos + Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f));
+        jetRight = Jet(size, pos + Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f));
+        jetBack = Jet(size, pos + Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f));
+        jetFront = Jet(size, pos + Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f));
+        jetBottom = Jet(size, pos + Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f));
+        jetTop = Jet(size, pos + Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f));
     }
 
     void draw() {
@@ -1071,6 +1099,31 @@ public:
         jetBottom.generate(coneResolution);
         jetBack.generate(coneResolution);
         jetFront.generate(coneResolution);
+    }
+
+
+    Jet *getJetLeft() {
+        return &jetLeft;
+    }
+
+    Jet *getJetRight() {
+        return &jetRight;
+    }
+
+    Jet *getJetBack() {
+        return &jetBack;
+    }
+
+    Jet *getJetFront() {
+        return &jetFront;
+    }
+
+    Jet *getJetBottom() {
+        return &jetBottom;
+    }
+
+    Jet *getJetTop() {
+        return &jetTop;
     }
 };
 
@@ -1244,13 +1297,7 @@ public:
     }
 };
 
-/*
-Vector stationPos, stationRotate;
-Vector satellitePos;
-Vector lookat, eye;
-*/
-
-
+Satellite satellite;
 class Scene {
     long currentTime;
 
@@ -1261,7 +1308,6 @@ class Scene {
     Ellipsoid earth;
     Ellipsoid atmosphere;
     Ellipsoid sun;
-    Satellite satellite;
     Station station;
     PlanetTexture planetTexture;
     Space space;
@@ -1318,16 +1364,16 @@ public:
 
         light = Light(0, sunCenter, sunLight, false);
 
-        Vector satellitePos = Vector(2.8f, -1.4, -2);
-        satellite = Satellite(satellitePos, 0.6f);
-        satellite.generate();
-
         orbitTime = 200000;
         orbitStartAngle = degreeToRad(60);
         rotationTime = 10000;
         float orbitDistance = 20;
         station = Station(earth, orbitDistance, orbitStartAngle);
         station.generate();
+
+        Vector satellitePos = station.getPos() + Vector(1, -1, 2);
+        satellite = Satellite(satellitePos, 0.6f);
+        satellite.generate();
 
         eye = Vector(0.0f, 0.0f, 7.0f);
         lookat = station.getPos();
@@ -1388,6 +1434,11 @@ public:
     void setTime(long currentTime) {
         Scene::currentTime = currentTime;
     }
+
+    void startJet(Jet *jet) {
+        //TODO: jet.starttime, satellite.addV
+    }
+
 } scene;
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
@@ -1410,6 +1461,32 @@ void onDisplay() {
 // Billentyuzet esemenyeket lekezelo fuggveny (lenyomas)
 void onKeyboard(unsigned char key, int x, int y) {
     if (key == 'd') glutPostRedisplay();        // d beture rajzold ujra a kepet
+
+    Jet *jet;
+    switch (key) {
+        case 'w' :
+            jet = satellite.getJetBack();
+            break;
+        case 'a':
+            jet = satellite.getJetRight();
+            break;
+        case 's':
+            jet = satellite.getJetFront();
+            break;
+        case 'd':
+            jet = satellite.getJetLeft();
+            break;
+        case 'q':
+            jet = satellite.getJetBottom();
+            break;
+        case 'e':
+            jet = satellite.getJetTop();
+            break;
+        default:
+            jet = NULL;
+    }
+    if (jet != NULL)
+        scene.startJet(jet);
 
 }
 
