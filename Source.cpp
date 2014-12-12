@@ -778,7 +778,7 @@ public:
 
         material.setOGL();
 
-        glBegin(GL_QUADS);
+        glBegin(GL_QUAD_STRIP);
         for (size_t i = 0; i < vertexNr; i++) {
             if (textured)
                 glTexCoord(texVertexes[i]);
@@ -795,14 +795,15 @@ public:
     }
 
     void generate(int resolution) {
-        vertexNr = (resolution + 1) * (resolution + 1) * 4;
+        vertexNr = (resolution + 1) * (resolution + 1) * 2;
         vertexes = new Vector[vertexNr];
         normals = new Vector[vertexNr];
         texVertexes = new Vector[vertexNr];
 
-        float startU = PI / (-2.0f);
-        float startV = PI * (-1.0f);
-        float endU = PI / 2.0f;
+        // -90 -> 90, -180 -> 180
+        float startU = -PI / 2;
+        float startV = -PI;
+        float endU = PI / 2;
         float endV = PI;
         float du = (endU - startU) / resolution;
         float dv = (endV - startV) / resolution;
@@ -812,27 +813,18 @@ public:
             for (float v = startV; v < endV; v += dv) {
                 vertexes[currentVertex] = getSurfacePoint(u, v);
                 vertexes[currentVertex + 1] = getSurfacePoint(u + du, v);
-                vertexes[currentVertex + 2] = getSurfacePoint(u + du, v + dv);
-                vertexes[currentVertex + 3] = getSurfacePoint(u, v + dv);
-
                 normals[currentVertex] = getNormal(u, v);
                 normals[currentVertex + 1] = getNormal(u + du, v);
-                normals[currentVertex + 2] = getNormal(u + du, v + dv);
-                normals[currentVertex + 3] = getNormal(u, v + dv);
 
                 if (textured) {
                     float uX = (u - startU) / (endU - startU);
                     float uX1 = (u - startU + du) / (endU - startU);
                     float vX = (v - startV) / (endV - startV);
-                    float vX1 = (v - startV + dv) / (endV - startV);
-
                     texVertexes[currentVertex] = Vector(uX, vX);
                     texVertexes[currentVertex + 1] = Vector(uX1, vX);
-                    texVertexes[currentVertex + 2] = Vector(uX1, vX1);
-                    texVertexes[currentVertex + 3] = Vector(uX, vX1);
                 }
 
-                currentVertex += 4;
+                currentVertex += 2;
             }
     }
 
