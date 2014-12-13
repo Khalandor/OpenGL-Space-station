@@ -847,16 +847,40 @@ class Cone : public Object {
     Vector center, rotate;
 
     int vertexNr;
-    Vector *vertexes;
+    Vector *outsideVertexes;
 
 public:
     Cone() {
-        vertexes = NULL;
+        outsideVertexes = NULL;
     }
 
     Cone(float r, float height, Vector const &center, Vector const &rotate, Material const &material)
             : Object(material), r(r), height(height), center(center), rotate(rotate) {
-        vertexes = NULL;
+        outsideVertexes = NULL;
+    }
+
+    void drawOutside() {
+        Vector top = Vector(0, 1, 0);
+        glBegin(GL_TRIANGLE_FAN);
+        glNormal(top);
+        glVertex(top);
+        for (int i = 0; i < vertexNr; i++) {
+            glNormal(outsideVertexes[i]);
+            glVertex(outsideVertexes[i]);
+        }
+        glEnd();
+    }
+
+    void drawInside() {
+        Vector top = Vector(0, 1, 0);
+        glBegin(GL_TRIANGLE_FAN);
+        glNormal(top * -1);
+        glVertex(top * 0.9);
+        for (int i = 0; i < vertexNr; i++) {
+            glNormal(outsideVertexes[i] * (-0.9));
+            glVertex(outsideVertexes[i]);
+        }
+        glEnd();
     }
 
     void draw() {
@@ -868,22 +892,15 @@ public:
         glScalef(r, height, r);
 
         material.setOGL();
+        drawOutside();
+        drawInside();
 
-        glBegin(GL_TRIANGLE_FAN);
-        Vector top = Vector(0, 1, 0);
-        glNormal(top);
-        glVertex(top);
-        for (int i = 0; i < vertexNr; i++) {
-            glNormal(vertexes[i]);
-            glVertex(vertexes[i]);
-        }
-        glEnd();
         glPopMatrix();
     }
 
     void generate(int resolution) {
         vertexNr = resolution + 1;
-        vertexes = new Vector[vertexNr];
+        outsideVertexes = new Vector[vertexNr];
 
         float delta = 2 * PI / (float) resolution;
         for (int i = 0; i <= resolution; i++) {
@@ -892,13 +909,13 @@ public:
                     0.0f,
                     0.0f + (r * (float) sin(i * delta))
             );
-            vertexes[i] = pointOnCircle;
+            outsideVertexes[i] = pointOnCircle;
         }
     }
 
     ~Cone() {
-        if (vertexes != NULL)
-            delete[] vertexes;
+        if (outsideVertexes != NULL)
+            delete[] outsideVertexes;
     }
 };
 
@@ -1039,7 +1056,7 @@ public:
 class Jet : public Object {
     Cone jetOutside;
     Vector pos;
-    // Cone jetInside, fire;
+    // fire;
     bool lit;
     long startTime;
 
@@ -1108,11 +1125,11 @@ public:
 
         enableThrowBackCW();
         satelliteBody.draw();
+        disableThrowBack();
         jetLeft.draw();
         jetRight.draw();
         jetTop.draw();
         jetBottom.draw();
-        disableThrowBack();
         jetBack.draw();
         jetFront.draw();
 
