@@ -1335,6 +1335,8 @@ class Scene {
     float ropeLength, kickDistance;
     Vector kickSpeed;
     bool hasKicked;
+    long stretchStartTime;
+    bool stretching;
 
     long orbitTime;
     float orbitStartAngle;
@@ -1399,10 +1401,11 @@ public:
         satellite = Satellite(satellitePos, 0.3f);
         satellite.generate();
 
-        ropeLength = 12;
+        ropeLength = 6;
         kickDistance = 4;
         kickSpeed = Vector(0, 0, 1);
         hasKicked = true;
+        stretching = false;
 
         lookat = station.getPos();
         eye = lookat + Vector(0, 0, 3);
@@ -1450,22 +1453,37 @@ public:
 
         Vector newEye = eye + (kickSpeed * deltaT / 1000);
         float newDistance = (newEye - lookat).length();
-        if (newDistance < ropeLength) {
+
+        if (!hasKicked && newDistance < kickDistance) {
+            kickSpeed = (lookat - earth.getCenter()).normalized() * 2;
+            hasKicked = true;
+        }
+        else if (newDistance < ropeLength) {
             eye = newEye;
-            if (!hasKicked && newDistance < kickDistance) {
-                kickSpeed = (lookat - earth.getCenter()).normalized() * 2;
-                hasKicked = true;
+        }
+        else if (stretching) {
+            // Harmonikus rezgőmozgás
+            // Kitérés = Amplitúdó * sin(szögsebesség * idő) (+ eltolás)
+
+            float amplitude = 8;
+            float frequency = 1 / 4000.0f;
+            float stretchDistance = amplitude * sinf(frequency * (sliceEnd - stretchStartTime));
+            if (stretchDistance >= 0) {
+                Vector direction = (eye - lookat).normalized();
+                eye = lookat + (direction * (ropeLength + stretchDistance));
+            } else {
+                Vector direction = (eye - lookat).normalized();
+                eye = lookat + (direction * ropeLength);
+                stretching = false;
+                kickSpeed = (lookat - eye).normalized();
             }
         }
         else {
-            // TODO stretch
+            stretching = true;
             hasKicked = false;
-            kickSpeed = (lookat - eye).normalized() * 2;
-            eye = eye + kickSpeed * deltaT / 1000;
+            stretchStartTime = sliceEnd;
         }
-
         setCamera();
-
     }
 
     void simulateWorldSince(long tstart) {
