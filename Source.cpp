@@ -1333,7 +1333,9 @@ class Scene {
     Space space;
 
     float ropeLength, kickDistance;
-    Vector kickSpeed;
+    Vector floatingDirection;
+    float floatingSpeed;
+    float stretchLength;
     bool hasKicked;
     long stretchStartTime;
     bool stretching;
@@ -1402,8 +1404,10 @@ public:
         satellite.generate();
 
         ropeLength = 6;
+        stretchLength = 3;
         kickDistance = 4;
-        kickSpeed = Vector(0, 0, 1);
+        floatingDirection = Vector(0, 0, 1);
+        floatingSpeed = 1;
         hasKicked = true;
         stretching = false;
 
@@ -1451,11 +1455,13 @@ public:
 
         lookat = station.getPos();
 
-        Vector newEye = eye + (kickSpeed * deltaT / 1000);
+        Vector newEye = eye + (floatingDirection * floatingSpeed * deltaT / 1000);
         float newDistance = (newEye - lookat).length();
 
         if (!hasKicked && newDistance < kickDistance) {
-            kickSpeed = (lookat - earth.getCenter()).normalized() * 2;
+            eye = newEye;
+            floatingDirection = (lookat - earth.getCenter()).normalized();
+            floatingSpeed = 2;
             hasKicked = true;
         }
         else if (newDistance < ropeLength) {
@@ -1464,18 +1470,20 @@ public:
         else if (stretching) {
             // Harmonikus rezgőmozgás
             // Kitérés = Amplitúdó * sin(szögsebesség * idő) (+ eltolás)
+            // frekvencia = maxsebesség(sec) / amplitúdó
 
-            float amplitude = 8;
-            float frequency = 1 / 4000.0f;
+            float amplitude = stretchLength * 2;
+            float frequency = floatingSpeed / amplitude / 1000.0f;
             float stretchDistance = amplitude * sinf(frequency * (sliceEnd - stretchStartTime));
             if (stretchDistance >= 0) {
                 Vector direction = (eye - lookat).normalized();
                 eye = lookat + (direction * (ropeLength + stretchDistance));
-            } else {
+            }
+            else {
                 Vector direction = (eye - lookat).normalized();
                 eye = lookat + (direction * ropeLength);
                 stretching = false;
-                kickSpeed = (lookat - eye).normalized();
+                floatingDirection = (lookat - eye).normalized();
             }
         }
         else {
