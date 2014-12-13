@@ -245,8 +245,8 @@ const Material chrome = Material(Color(0.4, 0.4, 0.4), Color(0.25, 0.25, 0.25) *
 const Material solarPanelMaterial = Material(Color(0.01, 0.01, 0.01), Color(0.01, 0.01, 0.01), Color(0.1, 0.1, 0.1), 0.8);
 const Material planet = Material(Color(0.06, 0.06, 0.39) * 7, Color(0, 0, 0), Color(0, 0, 0), 0.0);
 const Material sunColor = Material(Color(0, 0, 0), Color(0.93, 0.88, 0.14), Color(0, 0, 0), 0.0) * 2.5f;
-const Material sunLight = Material(Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), 1.0) * 0.5f;
-Color atmosphereColor = Color(0.62, 0.85, 0.93 * 1.2) * 0.8;
+const Material sunLight = Material(Color(1, 1, 1), Color(1, 1, 1), Color(1, 1, 1), 1.0) * 0.5f;
+Color atmosphereColor = Color(0.62, 0.85, 0.93f * 1.2f) * 0.8;
 const Material atmosphereMat = Material(atmosphereColor * 0.5, Color(0, 0, 0), atmosphereColor, 10.0);
 
 class Texture {
@@ -335,10 +335,10 @@ class PlanetTexture : public Texture {
         float noiseMapSize = continentDistribution;
         float xDelta = noiseMapSize / textureWidth;
         float yDelta = noiseMapSize / textureHeight;
-        minNoise = 1000.0f;
+        minNoise = 1000;
         maxNoise = -1000.0f;
-        for (float Y = 0.0f; Y < noiseMapSize; Y += yDelta)
-            for (float X = 0.0f; X < noiseMapSize; X += xDelta) {
+        for (float Y = 0; Y < noiseMapSize; Y += yDelta)
+            for (float X = 0; X < noiseMapSize; X += xDelta) {
                 float noise = perlin(X, Y);
                 if (noise < minNoise)
                     minNoise = noise;
@@ -360,10 +360,10 @@ class PlanetTexture : public Texture {
         //kis noise = zöld, nagy noise = kék
         float hardnessMultiplier = 1 + ((float) hardness / 10.0f);
         if (value > 0.5) {
-            if (value * hardnessMultiplier < 1.0f)
+            if (value * hardnessMultiplier < 1)
                 return value * hardnessMultiplier;
             else
-                return 1.0f;
+                return 1;
         }
         return value / hardnessMultiplier;
     }
@@ -737,7 +737,7 @@ class Ellipsoid : public Object {
         return Vector(
                 a * cosf(u) * (-1.0f * sinf(v)),
                 b * cosf(u) * cosf(v),
-                0.0f
+                0
         );
     }
 
@@ -778,7 +778,7 @@ public:
 
         if (textured) {
             // szép oldal felé forgatás
-            glRotatef(180.0f, 0, 0, 1);
+            glRotatef(180, 0, 0, 1);
             glRotatef(-90.0f, 1, 0, 0);
             glEnable(GL_TEXTURE_2D);
             glBindTexture(GL_TEXTURE_2D, texture->getTexture());
@@ -913,9 +913,9 @@ public:
         float delta = 2 * PI / (float) resolution;
         for (int i = 0; i <= resolution; i++) {
             Vector pointOnCircle = Vector(
-                    (r * (float) cos(i * delta)),
-                    0.0f,
-                    0.0f + (r * (float) sin(i * delta))
+                    (r * cosf(i * delta)),
+                    0,
+                    r * sinf(i * delta)
             );
             outsideVertexes[i] = pointOnCircle;
         }
@@ -1048,9 +1048,9 @@ public:
             for (int X = 0; X < screenWidth; X++) {
                 int current = Y * screenWidth + X;
                 if ((current % 184) == (Y * X % 211))
-                    space[current] = Color(1.0f, 1.0f, 1.0f);
+                    space[current] = Color(1, 1, 1);
                 else
-                    space[current] = Color(0.0f, 0.0f, 0.0f);
+                    space[current] = Color(0, 0, 0);
             }
     }
 
@@ -1124,12 +1124,12 @@ public:
               size(size) {
         satelliteBody = Ellipsoid(size, size, size, chrome, Vector(0, 0, 0), false);
 
-        jetLeft = Jet(size, Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), Vector(-1, 0, 0), Color(1, 0.5, 0.5));
-        jetRight = Jet(size, Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), Vector(1, 0, 0), Color(0.5, 1, 0.5));
-        jetBack = Jet(size, Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), Vector(0, 0, 1), Color(0.5, 0.5, 1));
-        jetFront = Jet(size, Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), Vector(0, 0, -1), Color(1, 1, 0.5));
-        jetBottom = Jet(size, Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), Vector(0, -1, 0), Color(0.5, 1, 1));
-        jetTop = Jet(size, Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), Vector(0, 1, 0), Color(1, 0.5, 1));
+        jetLeft = Jet(size, Vector(-size * 2, 0, 0), Vector(0, 0, -90.0f), Vector(-1, 0, 0), Color(1, 0.5, 0.5));
+        jetRight = Jet(size, Vector(size * 2, 0, 0), Vector(0, 0, 90), Vector(1, 0, 0), Color(0.5, 1, 0.5));
+        jetBack = Jet(size, Vector(0, 0, size * 2), Vector(-90.0f, 0, 0), Vector(0, 0, 1), Color(0.5, 0.5, 1));
+        jetFront = Jet(size, Vector(0, 0, -size * 2), Vector(90, 0, 0), Vector(0, 0, -1), Color(1, 1, 0.5));
+        jetBottom = Jet(size, Vector(0, -size * 2, 0), Vector(0, 0, 0), Vector(0, -1, 0), Color(0.5, 1, 1));
+        jetTop = Jet(size, Vector(0, size * 2, 0), Vector(180, 0, 0), Vector(0, 1, 0), Color(1, 0.5, 1));
         v = Vector(0, 0, 0);
     }
 
@@ -1227,15 +1227,15 @@ public:
 
     Station(Ellipsoid const &planet, float orbitDistance, float orbitAngle)
             : orbitDistance(orbitDistance), orbitAngleRad(orbitAngle) {
-        rotationAngleDeg = 0.0f;
+        rotationAngleDeg = 0;
         orbitMiddle = planet.getCenter();
 
         float posX = (float) (orbitMiddle.x - orbitDistance * cos(orbitAngle));
         float posZ = (float) (orbitMiddle.z + orbitDistance * sin(orbitAngle));
-        pos = Vector(posX, 0.0f, posZ);
+        pos = Vector(posX, 0, posZ);
 
-        solarPanel1 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(0.5, 0.0, 0.0), Vector(-20.0, 0.0, 0.0));
-        solarPanel2 = FramedRectangle(Vector(0.0f, 0.0f, 0.0f), Vector(2.0f, 0.8f, 0.0f), Vector(-2.5, 0.0, 0.0), Vector(-20.0, 0.0, 0.0));
+        solarPanel1 = FramedRectangle(Vector(0, 0, 0), Vector(2, 0.8f, 0), Vector(0.5, 0, 0), Vector(-20.0f, 0, 0));
+        solarPanel2 = FramedRectangle(Vector(0, 0, 0), Vector(2, 0.8f, 0), Vector(-2.5f, 0, 0), Vector(-20.0f, 0, 0));
         rotatedSpline = RotatedSpline(chrome);
     }
 
@@ -1254,17 +1254,13 @@ public:
     }
 
     void generate() {
-        rotatedSpline.generate(150, 150);
+        rotatedSpline.generate(100, 100);
         solarPanel1.generate();
         solarPanel2.generate();
     }
 
     Vector const &getPos() const {
         return pos;
-    }
-
-    void setPos(Vector const &pos) {
-        Station::pos = pos;
     }
 
     void setRotationAngleDeg(float rotationAngle) {
@@ -1275,7 +1271,7 @@ public:
         Station::orbitAngleRad = orbitAngle;
         float posX = (float) (orbitMiddle.x - orbitDistance * cos(orbitAngle));
         float posZ = (float) (orbitMiddle.z + orbitDistance * sin(orbitAngle));
-        pos = Vector(posX, 0.0f, posZ);
+        pos = Vector(posX, 0, posZ);
     }
 
     float getHoleRadius() const {
@@ -1328,9 +1324,9 @@ public:
         Color ambient = lightColor.getAmbient();
         Color specular = lightColor.getSpecular();
 
-        GLfloat diffuseArr[] = {diffuse.r, diffuse.g, diffuse.b, 1.0f};
-        GLfloat ambientArr[] = {ambient.r, ambient.g, ambient.b, 1.0f};
-        GLfloat specularArr[] = {specular.r, specular.g, specular.b, 1.0f};
+        GLfloat diffuseArr[] = {diffuse.r, diffuse.g, diffuse.b, 1};
+        GLfloat ambientArr[] = {ambient.r, ambient.g, ambient.b, 1};
+        GLfloat specularArr[] = {specular.r, specular.g, specular.b, 1};
 
         glLightfv(lightId, GL_DIFFUSE, diffuseArr);
         glLightfv(lightId, GL_AMBIENT, ambientArr);
@@ -1362,13 +1358,20 @@ class Camera {
 
 public:
     Camera() {
-    }
-
-    Camera(Vector const &eye, Vector const &lookat, Vector const &up, float viewAngleDegree, float zNear, float zFar)
-            : eye(eye), lookat(lookat), up(up), viewAngleDegree(viewAngleDegree), zNear(zNear), zFar(zFar) {
+        up = Vector(0, 1, 0);
+        zNear = 0.1;
+        zFar = 55;
+        viewAngleDegree = 60;
     }
 
     void setOGL() {
+        // modelview mátrix
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        gluLookAt(eye.x, eye.y, eye.z, lookat.x, lookat.y, lookat.z, up.x, up.y, up.z);
+    }
+
+    void init() {
         // képernyő méret
         glViewport(0, 0, screenWidth, screenHeight);
 
@@ -1377,17 +1380,28 @@ public:
         glLoadIdentity();
         glEnable(GL_DEPTH_TEST);
         gluPerspective(viewAngleDegree, (float) screenWidth / (float) screenHeight, zNear, zFar);
+    }
 
-        // modelview mátrix
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
-        gluLookAt(eye.x, eye.y, eye.z, lookat.x, lookat.y, lookat.z, up.x, up.y, up.z);
+
+    Vector const &getEye() const {
+        return eye;
+    }
+
+    void setEye(Vector const &eye) {
+        Camera::eye = eye;
+    }
+
+    Vector const &getLookat() const {
+        return lookat;
+    }
+
+    void setLookat(Vector const &lookat) {
+        Camera::lookat = lookat;
     }
 };
 
 class Scene {
     bool win;
-    Vector eye, lookat;
 
     Light light;
     Camera camera;
@@ -1398,30 +1412,16 @@ class Scene {
     PlanetTexture planetTexture;
     Space space;
 
-    float ropeLength, kickDistance;
+    float ropeLength, kickDistance, floatingSpeed, stretchLength;
     Vector floatingDirection;
-    float floatingSpeed;
-    float stretchLength;
-    bool hasKicked;
+    bool hasKicked, stretching;
     long stretchStartTime;
-    bool stretching;
 
-    long orbitTime;
+    long orbitTime, rotationTime;
     float orbitStartAngle;
 
-    long rotationTime;
-
-    void setCamera() {
-        Vector up(0, 1, 0);
-        float zNear = 0.1;
-        float zFar = 55;
-        float viewAngle = 60.0f;
-        camera = Camera(eye, lookat, up, viewAngle, zNear, zFar);
-        camera.setOGL();
-    }
-
     float degreeToRad(float degree) {
-        return degree * 2.0f * PI / 360.0f;
+        return degree * 2 * PI / 360.0f;
     }
 
     void moveStation(float ts) {
@@ -1443,22 +1443,25 @@ class Scene {
 public:
     void build() {
         win = false;
-        planetTexture.setOGL();
 
-        Vector earthCenter = Vector(-4.0f, 0.0f, -25.0f);
-        earth = Ellipsoid(10.0f, 10.0f, 10.0f, planet, earthCenter, true);
+        // Earth
+        generateTextures();
+        planetTexture.setOGL();
+        Vector earthCenter = Vector(-4.0f, 0, -25.0f);
+        earth = Ellipsoid(10, 10, 10, planet, earthCenter, true);
         earth.setTexture(&planetTexture);
         earth.generate(30);
 
-        atmosphere = Ellipsoid(11.f, 11.0f, 11.0f, atmosphereMat, earthCenter, false);
+        // Atmosphere
+        atmosphere = Ellipsoid(11, 11, 11, atmosphereMat, earthCenter, false);
         atmosphere.generate(40);
 
-        Vector sunCenter = Vector(8, 5.0f, 3.0f);
-        sun = Ellipsoid(1.0f, 1.0f, 1.0f, sunColor, sunCenter, false);
+        // Sun
+        Vector sunCenter = Vector(8, 5, 3);
+        sun = Ellipsoid(1, 1, 1, sunColor, sunCenter, false);
         sun.generate(10);
 
-        light = Light(0, sunCenter, sunLight, false);
-
+        // Station
         orbitTime = 200000;
         orbitStartAngle = degreeToRad(60);
         rotationTime = 10000;
@@ -1466,10 +1469,15 @@ public:
         station = Station(earth, orbitDistance, orbitStartAngle);
         station.generate();
 
+        // Satellite
         Vector satellitePos = station.getPos() + Vector(1, -1, 2);
         satellite = Satellite(satellitePos, 0.3f);
         satellite.generate();
 
+        // Light
+        light = Light(0, sunCenter, sunLight, false);
+
+        // Camera
         ropeLength = 6;
         stretchLength = 3;
         kickDistance = 4;
@@ -1477,10 +1485,10 @@ public:
         floatingSpeed = 1;
         hasKicked = true;
         stretching = false;
-
-        lookat = station.getPos();
-        eye = lookat + Vector(0, 0, 3);
-        setCamera();
+        camera.setLookat(station.getPos());
+        camera.setEye(camera.getLookat() + Vector(0, 0, 3));
+        camera.init();
+        camera.setOGL();
     };
 
     void render() {
@@ -1517,26 +1525,21 @@ public:
         return (station.getPos() - satellite.getPos()).length() < station.getHoleRadius() + satellite.getSize();
     }
 
-    void simulateTimeSlice(long sliceStart, long sliceEnd) {
-        rotateStation(sliceEnd);
-        moveStation(sliceEnd);
-
-        long deltaT = sliceEnd - sliceStart;
-        satellite.setPos(satellite.getPos() + (satellite.getV() * deltaT / 1000));
-
-        lookat = station.getPos();
+    void moveCamera(long sliceEnd, long deltaT) {
+        Vector lookat = station.getPos();
+        Vector eye = camera.getEye();
+        camera.setLookat(lookat);
 
         Vector newEye = eye + (floatingDirection * floatingSpeed * deltaT / 1000);
         float newDistance = (newEye - lookat).length();
-
         if (!hasKicked && newDistance < kickDistance) {
-            eye = newEye;
+            camera.setEye(newEye);
             floatingDirection = (lookat - earth.getCenter()).normalized();
             floatingSpeed = 3;
             hasKicked = true;
         }
         else if (newDistance < ropeLength) {
-            eye = newEye;
+            camera.setEye(newEye);
         }
         else if (stretching) {
             // Harmonikus rezgőmozgás
@@ -1549,12 +1552,14 @@ public:
             if (stretchDistance >= 0) {
                 Vector direction = (eye - lookat).normalized();
                 eye = lookat + (direction * (ropeLength + stretchDistance));
+                camera.setEye(eye);
             }
             else {
                 Vector direction = (eye - lookat).normalized();
                 eye = lookat + (direction * ropeLength);
                 stretching = false;
                 floatingDirection = (lookat - eye).normalized();
+                camera.setEye(eye);
             }
         }
         else {
@@ -1562,7 +1567,18 @@ public:
             hasKicked = false;
             stretchStartTime = sliceEnd;
         }
-        setCamera();
+        camera.setOGL();
+    }
+
+    void simulateTimeSlice(long sliceStart, long sliceEnd) {
+        rotateStation(sliceEnd);
+        moveStation(sliceEnd);
+
+        long deltaT = sliceEnd - sliceStart;
+        satellite.setPos(satellite.getPos() + (satellite.getV() * deltaT / 1000));
+
+        moveCamera(sliceEnd, deltaT);
+
         if (isInsideHole())
             win = true;
     }
@@ -1571,7 +1587,7 @@ public:
         if (!win) {
             int dt = 25;
             for (long sliceStart = tstart; sliceStart < currentTime; sliceStart += dt) {
-                float te = (currentTime < sliceStart + dt ? currentTime : sliceStart + dt);
+                long te = (currentTime < sliceStart + dt ? currentTime : sliceStart + dt);
                 simulateTimeSlice(sliceStart, te);
             }
         }
@@ -1581,7 +1597,6 @@ public:
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
 void onInitialization() {
-    scene.generateTextures();
     scene.build();
     glShadeModel(GL_SMOOTH);
 //    debug();
