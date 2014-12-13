@@ -209,8 +209,11 @@ public:
     }
 
     Material operator*(float a) const {
-        Material m = Material(diffuse * a, ambient * a, specular * a, shine * a);
-        return m;
+        return Material(diffuse * a, ambient * a, specular * a, shine * a);
+    }
+
+    Material operator*(Color c) const {
+        return Material(diffuse * c, ambient * c, specular * c, shine);
     }
 
     void setOGL() {
@@ -1068,9 +1071,9 @@ public:
     Jet() : Object() {
     }
 
-    Jet(float size, Vector const &pos, Vector const &rotation, Vector const &direction)
+    Jet(float size, Vector const &pos, Vector const &rotation, Vector const &direction, Color const &color)
             : Object(), pos(pos), direction(direction) {
-        jet = Cone(size, size, pos, rotation, chrome);
+        jet = Cone(size, size, pos, rotation, chrome * color);
         Vector absDirection = Vector(fabsf(direction.x), fabsf(direction.y), fabsf(direction.z));
         Vector switchedDirection = (Vector(1, 1, 1) - absDirection);
         Vector fireSize = Vector(size, size, size) - switchedDirection * size / 1.5;
@@ -1086,7 +1089,7 @@ public:
     }
 
     void generate(int resolution) {
-        jet.generate(resolution);
+        jet.generate(resolution * 2);
         fire.generate(resolution);
     }
 
@@ -1117,12 +1120,12 @@ public:
               size(size) {
         satelliteBody = Ellipsoid(size, size, size, chrome, Vector(0, 0, 0), false);
 
-        jetLeft = Jet(size, Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), Vector(-1, 0, 0));
-        jetRight = Jet(size, Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), Vector(1, 0, 0));
-        jetBack = Jet(size, Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), Vector(0, 0, 1));
-        jetFront = Jet(size, Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), Vector(0, 0, -1));
-        jetBottom = Jet(size, Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), Vector(0, -1, 0));
-        jetTop = Jet(size, Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), Vector(0, 1, 0));
+        jetLeft = Jet(size, Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), Vector(-1, 0, 0), Color(1, 0.5, 0.5));
+        jetRight = Jet(size, Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), Vector(1, 0, 0), Color(0.5, 1, 0.5));
+        jetBack = Jet(size, Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), Vector(0, 0, 1), Color(0.5, 0.5, 1));
+        jetFront = Jet(size, Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), Vector(0, 0, -1), Color(1, 1, 0.5));
+        jetBottom = Jet(size, Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), Vector(0, -1, 0), Color(0.5, 1, 1));
+        jetTop = Jet(size, Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), Vector(0, 1, 0), Color(1, 0.5, 1));
         v = Vector(0, 0, 0);
     }
 
