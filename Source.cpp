@@ -703,6 +703,10 @@ public:
         }
     }
 
+    float getHoleRadius() const {
+        return holeRadius;
+    }
+
     ~RotatedSpline() {
         if (vertexes != NULL)
             delete[] vertexes;
@@ -1199,6 +1203,10 @@ public:
     Vector const &getV() const {
         return v;
     }
+
+    float getSize() const {
+        return size;
+    }
 } satellite;
 
 class Station : public Object {
@@ -1246,7 +1254,7 @@ public:
     }
 
     void generate() {
-        rotatedSpline.generate(100, 100);
+        rotatedSpline.generate(150, 150);
         solarPanel1.generate();
         solarPanel2.generate();
     }
@@ -1268,6 +1276,10 @@ public:
         float posX = (float) (orbitMiddle.x - orbitDistance * cos(orbitAngle));
         float posZ = (float) (orbitMiddle.z + orbitDistance * sin(orbitAngle));
         pos = Vector(posX, 0.0f, posZ);
+    }
+
+    float getHoleRadius() const {
+        return rotatedSpline.getHoleRadius();
     }
 };
 
@@ -1374,6 +1386,7 @@ public:
 };
 
 class Scene {
+    bool win;
     Vector eye, lookat;
 
     Light light;
@@ -1429,6 +1442,7 @@ class Scene {
 
 public:
     void build() {
+        win = false;
         planetTexture.setOGL();
 
         Vector earthCenter = Vector(-4.0f, 0.0f, -25.0f);
@@ -1499,6 +1513,10 @@ public:
         space.generate();
     }
 
+    bool isInsideHole() {
+        return (station.getPos() - satellite.getPos()).length() < station.getHoleRadius() + satellite.getSize();
+    }
+
     void simulateTimeSlice(long sliceStart, long sliceEnd) {
         rotateStation(sliceEnd);
         moveStation(sliceEnd);
@@ -1545,13 +1563,17 @@ public:
             stretchStartTime = sliceEnd;
         }
         setCamera();
+        if (isInsideHole())
+            win = true;
     }
 
     void simulateWorldSince(long tstart) {
-        int dt = 25;
-        for (long sliceStart = tstart; sliceStart < currentTime; sliceStart += dt) {
-            float te = (currentTime < sliceStart + dt ? currentTime : sliceStart + dt);
-            simulateTimeSlice(sliceStart, te);
+        if (!win) {
+            int dt = 25;
+            for (long sliceStart = tstart; sliceStart < currentTime; sliceStart += dt) {
+                float te = (currentTime < sliceStart + dt ? currentTime : sliceStart + dt);
+                simulateTimeSlice(sliceStart, te);
+            }
         }
     }
 
