@@ -249,6 +249,40 @@ const Material sunLight = Material(Color(1, 1, 1), Color(1, 1, 1), Color(1, 1, 1
 Color atmosphereColor = Color(0.62, 0.85, 0.93f * 1.2f) * 0.8;
 const Material atmosphereMat = Material(atmosphereColor * 0.5, Color(0, 0, 0), atmosphereColor, 10.0);
 
+void glVertex(Vector const &v) {
+    glVertex3f(v.x, v.y, v.z);
+}
+
+void glNormal(Vector const &v) {
+    glNormal3f(v.x, v.y, v.z);
+}
+
+void glTexCoord(Vector const &v) {
+    glTexCoord2f(v.x, v.y);
+}
+
+void enableThrowBackCW() {
+    // hátsólap-eldobás
+    glFrontFace(GL_CW); // Az normál irányából nézve CCW a körüljárási irány
+    glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
+    glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
+}
+
+void enableThrowBackCCW() {
+    // hátsólap-eldobás
+    glFrontFace(GL_CCW); // Az normál irányából nézve CCW a körüljárási irány
+    glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
+    glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
+}
+
+void disableThrowBack() {
+    glDisable(GL_CULL_FACE);
+}
+
+float degreeToRad(float degree) {
+    return degree * 2 * PI / 360.0f;
+}
+
 class Texture {
 protected:
     GLuint tex;
@@ -391,36 +425,6 @@ public:
     PlanetTexture() {
     }
 };
-
-void glVertex(Vector const &v) {
-    glVertex3f(v.x, v.y, v.z);
-}
-
-void glNormal(Vector const &v) {
-    glNormal3f(v.x, v.y, v.z);
-}
-
-void glTexCoord(Vector const &v) {
-    glTexCoord2f(v.x, v.y);
-}
-
-void enableThrowBackCW() {
-    // hátsólap-eldobás
-    glFrontFace(GL_CW); // Az normál irányából nézve CCW a körüljárási irány
-    glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
-    glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
-}
-
-void enableThrowBackCCW() {
-    // hátsólap-eldobás
-    glFrontFace(GL_CCW); // Az normál irányából nézve CCW a körüljárási irány
-    glCullFace(GL_BACK); // A hátsó oldalt akarjuk eldobni
-    glEnable(GL_CULL_FACE); // És engedélyezzük a lapeldobást.
-}
-
-void disableThrowBack() {
-    glDisable(GL_CULL_FACE);
-}
 
 class Object {
 protected:
@@ -1114,6 +1118,7 @@ class Satellite : public Object {
 
     Ellipsoid satelliteBody;
     Jet jetLeft, jetRight, jetBack, jetFront, jetBottom, jetTop;
+    float rotationSpeed, rotationAngleDegree;
 
 public:
     Satellite() {
@@ -1124,18 +1129,21 @@ public:
               size(size) {
         satelliteBody = Ellipsoid(size, size, size, chrome, Vector(0, 0, 0), false);
 
-        jetLeft = Jet(size, Vector(-size * 2, 0, 0), Vector(0, 0, -90.0f), Vector(-1, 0, 0), Color(1, 0.5, 0.5));
-        jetRight = Jet(size, Vector(size * 2, 0, 0), Vector(0, 0, 90), Vector(1, 0, 0), Color(0.5, 1, 0.5));
+        jetLeft = Jet(size, Vector(-size * 2, size / 3, 0), Vector(0, 0, -90.0f), Vector(-1, 0, 0), Color(1, 0.5, 0.5));
+        jetRight = Jet(size, Vector(size * 2, size / 3, 0), Vector(0, 0, 90), Vector(1, 0, 0), Color(0.5, 1, 0.5));
         jetBack = Jet(size, Vector(0, 0, size * 2), Vector(-90.0f, 0, 0), Vector(0, 0, 1), Color(0.5, 0.5, 1));
         jetFront = Jet(size, Vector(0, 0, -size * 2), Vector(90, 0, 0), Vector(0, 0, -1), Color(1, 1, 0.5));
         jetBottom = Jet(size, Vector(0, -size * 2, 0), Vector(0, 0, 0), Vector(0, -1, 0), Color(0.5, 1, 1));
         jetTop = Jet(size, Vector(0, size * 2, 0), Vector(180, 0, 0), Vector(0, 1, 0), Color(1, 0.5, 1));
         v = Vector(0, 0, 0);
+        rotationAngleDegree = 0;
+        rotationSpeed = 0;
     }
 
     void draw() {
         glPushMatrix();
         glTranslatef(pos.x, pos.y, pos.z);
+        glRotatef(rotationAngleDegree, 0, 0, 1);
 
         enableThrowBackCW();
         satelliteBody.draw();
@@ -1163,8 +1171,24 @@ public:
 
     void startJet(Jet *jet, long time) {
         jet->start(time);
-        Vector impulse = jet->getDirection() * (-1) * size * 2;
+
+        // impulzus
+        float impulseStrength = size * 2;
+        float rotationAngleRad = degreeToRad(rotationAngleDegree);
+        Vector impulseDir = (jet->getDirection() * (-1)).normalized();
+        impulseDir = Vector(
+                impulseDir.x * cosf(rotationAngleRad) - impulseDir.y * sinf(rotationAngleRad),
+                impulseDir.x * sinf(rotationAngleRad) + impulseDir.y * cosf(rotationAngleRad),
+                impulseDir.z
+        );
+        Vector impulse = impulseDir * impulseStrength;
         v = v + impulse;
+
+        // forgás
+        if (jet == &jetLeft)
+            rotationSpeed -= 20;
+        else if (jet == &jetRight)
+            rotationSpeed += 20;
     }
 
     Jet *getJetLeft() {
@@ -1191,7 +1215,6 @@ public:
         return &jetTop;
     }
 
-
     Vector const &getPos() const {
         return pos;
     }
@@ -1207,6 +1230,17 @@ public:
     float getSize() const {
         return size;
     }
+
+    float getRotationSpeed() const {
+        return rotationSpeed;
+    }
+
+    void addRotationAngleDegree(float added) {
+        rotationAngleDegree = rotationAngleDegree + added;
+        if (rotationAngleDegree > 180)
+            rotationAngleDegree = rotationAngleDegree - 360;
+    }
+
 } satellite;
 
 class Station : public Object {
@@ -1420,10 +1454,6 @@ class Scene {
     long orbitTime, rotationTime;
     float orbitStartAngle;
 
-    float degreeToRad(float degree) {
-        return degree * 2 * PI / 360.0f;
-    }
-
     void moveStation(float ts) {
         float periodsDone = floorf(ts / orbitTime);
         float timePastInPeriod = ts - (periodsDone * orbitTime);
@@ -1438,6 +1468,14 @@ class Scene {
         float periodPart = timePastInPeriod / rotationTime;
         float angle = 360 * periodPart;
         station.setRotationAngleDeg(angle);
+    }
+
+    void moveSatellite(long deltaT) {
+        satellite.setPos(satellite.getPos() + (satellite.getV() * deltaT / 1000));
+    }
+
+    void rotateSatellite(long deltaT) {
+        satellite.addRotationAngleDegree(satellite.getRotationSpeed() * deltaT / 1000);
     }
 
 public:
@@ -1575,7 +1613,8 @@ public:
         moveStation(sliceEnd);
 
         long deltaT = sliceEnd - sliceStart;
-        satellite.setPos(satellite.getPos() + (satellite.getV() * deltaT / 1000));
+        moveSatellite(deltaT);
+        rotateSatellite(deltaT);
 
         moveCamera(sliceEnd, deltaT);
 
