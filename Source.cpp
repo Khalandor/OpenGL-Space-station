@@ -903,30 +903,59 @@ public:
 };
 
 class Rectangle : public Object {
-    Vector a, b, c, d;
+    Vector bL, tR;
     Vector normal;
+    int vertexNr;
+    Vector *vertexes;
 
 public:
     Rectangle() {
+        vertexes = NULL;
     }
 
-    Rectangle(Material const &material, Vector const &a, Vector const &b, Vector const &c, Vector const &d, Vector const &normal)
-            : Object(material), a(a), b(b), c(c), d(d), normal(normal) {
+    Rectangle(Material const &material, Vector const &b, Vector const &d, Vector const &normal)
+            : Object(material), bL(b), tR(d), normal(normal) {
+        vertexes = NULL;
     }
 
     void draw() {
-        // TODO tesellation
         material.setOGL();
         glBegin(GL_QUADS);
-        glNormal(normal);
-        glVertex(a);
-        glNormal(normal);
-        glVertex(b);
-        glNormal(normal);
-        glVertex(c);
-        glNormal(normal);
-        glVertex(d);
+        for (int i = 0; i < vertexNr; i++) {
+            glNormal(normal);
+            glVertex(vertexes[i]);
+        }
         glEnd();
+    }
+
+    void generate(int resolution) {
+        vertexNr = resolution * resolution * 4;
+        vertexes = new Vector[vertexNr];
+
+        float startU = bL.x;
+        float startV = bL.y;
+        float endU = tR.x;
+        float endV = tR.y;
+        float du = (endU - startU) / resolution;
+        float dv = (endV - startV) / resolution;
+
+        size_t currentVertex = 0;
+        for (float u = startU; u < endU; u += du)
+            for (float v = startV; v < endV - dv; v += dv) {
+                Vector bottomLeft = Vector(u, v, bL.z);
+                Vector topLeft = Vector(u, v + dv, bL.z);
+                Vector bottomRight = Vector(u + du, v, tR.z);
+                Vector topRight = Vector(u + du, v + dv, tR.z);
+                vertexes[currentVertex++] = topLeft;
+                vertexes[currentVertex++] = bottomLeft;
+                vertexes[currentVertex++] = bottomRight;
+                vertexes[currentVertex++] = topRight;
+            }
+    }
+
+    ~Rectangle() {
+        if (vertexes != NULL)
+            delete[] vertexes;
     }
 };
 
@@ -942,34 +971,26 @@ public:
     FramedRectangle(Vector const &bottomLeft, Vector const &topRight, Vector const &pos, Vector const &rotate)
             : pos(pos), rotate(rotate) {
 
-        Vector b = bottomLeft;
-        Vector d = topRight;
         Vector a = Vector(bottomLeft.x, topRight.y);
+        Vector b = bottomLeft;
         Vector c = Vector(topRight.x, bottomLeft.y);
+        Vector d = topRight;
 
-        Vector ad = d - a;
-        Vector ab = b - a;
         Vector ba = a - b;
         Vector bc = c - b;
-        Vector cd = d - c;
-        Vector cb = b - c;
         Vector da = a - d;
         Vector dc = c - d;
-        float frameSize = (ad.length() + ab.length() + bc.length() + cd.length()) / 4.0f / 20.0f;
+        float frameSize = (da.length() + ba.length() + bc.length() + dc.length()) / 4.0f / 20.0f;
 
-        Vector aInside = a + ad.normalized() * frameSize + ab.normalized() * frameSize + Vector(0, 0, 0.05f);
-        Vector bInside = b + ba.normalized() * frameSize + bc.normalized() * frameSize + Vector(0, 0, 0.05f);
-        Vector cInside = c + cd.normalized() * frameSize + cb.normalized() * frameSize + Vector(0, 0, 0.05f);
-        Vector dInside = d + da.normalized() * frameSize + dc.normalized() * frameSize + Vector(0, 0, 0.05f);
+        Vector bInside = b + ba.normalized() * frameSize + bc.normalized() * frameSize + Vector(0, 0, 0.02f);
+        Vector dInside = d + da.normalized() * 2 * frameSize + dc.normalized() * frameSize + Vector(0, 0, 0.02f);
 
-        Vector aBack = a - Vector(0, 0, 0.05f);
-        Vector bBack = b - Vector(0, 0, 0.05f);
-        Vector cBack = c - Vector(0, 0, 0.05f);
-        Vector dBack = d - Vector(0, 0, 0.05f);
+        Vector bBack = b - Vector(0, 0, 0.02f);
+        Vector dBack = d - Vector(0, 0, 0.02f);
 
-        frame = Rectangle(chrome, a, b, c, d, Vector(0, 0, 1));
-        inside = Rectangle(solarPanelMaterial, aInside, bInside, cInside, dInside, Vector(0, 0, 1));
-        back = Rectangle(chrome, aBack, bBack, cBack, dBack, Vector(0, 0, -1));
+        frame = Rectangle(chrome, b, d, Vector(0, 0, 1));
+        inside = Rectangle(solarPanelMaterial, bInside, dInside, Vector(0, 0, 1));
+        back = Rectangle(chrome, bBack, dBack, Vector(0, 0, -1));
 
     }
 
@@ -982,6 +1003,12 @@ public:
         back.draw();
 
         glPopMatrix();
+    }
+
+    void generate() {
+        frame.generate(10);
+        inside.generate(10);
+        back.generate(10);
     }
 };
 
@@ -1194,6 +1221,8 @@ public:
 
     void generate() {
         rotatedSpline.generate(100, 100);
+        solarPanel1.generate();
+        solarPanel2.generate();
     }
 
     Vector const &getPos() const {
@@ -1461,7 +1490,7 @@ public:
         if (!hasKicked && newDistance < kickDistance) {
             eye = newEye;
             floatingDirection = (lookat - earth.getCenter()).normalized();
-            floatingSpeed = 2;
+            floatingSpeed = 3;
             hasKicked = true;
         }
         else if (newDistance < ropeLength) {
@@ -1517,7 +1546,7 @@ void onInitialization() {
     scene.generateTextures();
     scene.build();
     glShadeModel(GL_SMOOTH);
-    //debug();
+//    debug();
 }
 
 // Rajzolas, ha az alkalmazas ablak ervenytelenne valik, akkor ez a fuggveny hivodik meg
