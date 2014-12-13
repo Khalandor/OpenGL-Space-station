@@ -241,7 +241,7 @@ public:
 };
 
 // diffuse, ambient, specular, shine
-const Material chrome = Material(Color(0.4, 0.4, 0.4), Color(0.25, 0.25, 0.25) * 0.4, Color(0.77, 0.77, 0.77), 0.6);
+const Material chrome = Material(Color(0.4, 0.4, 0.4), Color(0.25, 0.25, 0.25) * 0.4, Color(0.77, 0.77, 0.77), 4);
 const Material solarPanelMaterial = Material(Color(0.01, 0.01, 0.01), Color(0.01, 0.01, 0.01), Color(0.1, 0.1, 0.1), 0.8);
 const Material planet = Material(Color(0.06, 0.06, 0.39) * 7, Color(0, 0, 0), Color(0, 0, 0), 0.0);
 const Material sunColor = Material(Color(0, 0, 0), Color(0.93, 0.88, 0.14), Color(0, 0, 0), 0.0) * 2.5f;
@@ -891,10 +891,10 @@ public:
         Vector top = Vector(0, 1, 0);
         glBegin(GL_TRIANGLE_FAN);
         glNormal(top * -1);
-        glVertex(top * 0.95);
+        glVertex(top * 0.90);
         for (int i = 0; i < vertexNr; i++) {
             glNormal(outsideVertexes[i] * (-1));
-            glVertex(outsideVertexes[i] * (0.95));
+            glVertex(outsideVertexes[i] * (0.90));
         }
         glEnd();
     }
