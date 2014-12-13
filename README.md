@@ -1,6 +1,8 @@
 OpenGL-Space-station
 ====================
-OpenGL homework
+OpenGL 3D homework
+
+ ![Screenshot](screenshot.png "Screenshot")
 
 Feladat
 ------------
