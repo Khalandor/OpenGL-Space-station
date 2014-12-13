@@ -32,8 +32,4 @@ A lendület és perdület, mint mindig, itt is megmarad.
 
 A játék célja, hogy a mesterséges hold az űrállomás nyílásán besétáljon.
 
-A harmadik feladat a játék "csendélete", 
-még nem kell az objektumokat animálni és lángnyelvet sem kell kilőni.
-A virtuális világ életre keltése és vezérlése a negyedik házi feladata lesz.
-
-Beadási határidő: 2014. 11. 30. 23:59
+Beadási határidő: 2014. 12. 14. 23:59

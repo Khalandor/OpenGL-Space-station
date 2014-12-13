@@ -1135,9 +1135,9 @@ public:
         jetFront = Jet(size, Vector(0, 0, -size * 2), Vector(90, 0, 0), Vector(0, 0, -1), Color(1, 1, 0.5));
         jetBottom = Jet(size, Vector(0, -size * 2, 0), Vector(0, 0, 0), Vector(0, -1, 0), Color(0.5, 1, 1));
         jetTop = Jet(size, Vector(0, size * 2, 0), Vector(180, 0, 0), Vector(0, 1, 0), Color(1, 0.5, 1));
-        v = Vector(0, 0, 0);
+        v = Vector(0, 0, 0.2);
         rotationAngleDegree = 0;
-        rotationSpeed = 0;
+        rotationSpeed = 10;
     }
 
     void draw() {
@@ -1186,9 +1186,9 @@ public:
 
         // forgás
         if (jet == &jetLeft)
-            rotationSpeed -= 20;
+            rotationSpeed -= 30;
         else if (jet == &jetRight)
-            rotationSpeed += 20;
+            rotationSpeed += 30;
     }
 
     Jet *getJetLeft() {
@@ -1246,6 +1246,8 @@ public:
 class Station : public Object {
     Vector pos;
 
+    long orbitTime, rotationTime;
+
     float orbitAngleRad, orbitDistance;
     Vector orbitMiddle;
 
@@ -1261,6 +1263,8 @@ public:
 
     Station(Ellipsoid const &planet, float orbitDistance, float orbitAngle)
             : orbitDistance(orbitDistance), orbitAngleRad(orbitAngle) {
+        orbitTime = 2000000;
+        rotationTime = 100000;
         rotationAngleDeg = 0;
         orbitMiddle = planet.getCenter();
 
@@ -1310,6 +1314,15 @@ public:
 
     float getHoleRadius() const {
         return rotatedSpline.getHoleRadius();
+    }
+
+
+    long getOrbitTime() const {
+        return orbitTime;
+    }
+
+    long getRotationTime() const {
+        return rotationTime;
     }
 };
 
@@ -1451,10 +1464,10 @@ class Scene {
     bool hasKicked, stretching;
     long stretchStartTime;
 
-    long orbitTime, rotationTime;
     float orbitStartAngle;
 
     void moveStation(float ts) {
+        long orbitTime = station.getOrbitTime();
         float periodsDone = floorf(ts / orbitTime);
         float timePastInPeriod = ts - (periodsDone * orbitTime);
         float periodPart = timePastInPeriod / orbitTime;
@@ -1463,6 +1476,7 @@ class Scene {
     }
 
     void rotateStation(float ts) {
+        long rotationTime = station.getRotationTime();
         float periodsDone = floorf(ts / rotationTime);
         float timePastInPeriod = ts - (periodsDone * rotationTime);
         float periodPart = timePastInPeriod / rotationTime;
@@ -1500,10 +1514,8 @@ public:
         sun.generate(10);
 
         // Station
-        orbitTime = 200000;
-        orbitStartAngle = degreeToRad(60);
-        rotationTime = 10000;
         float orbitDistance = 20;
+        orbitStartAngle = degreeToRad(60);
         station = Station(earth, orbitDistance, orbitStartAngle);
         station.generate();
 
