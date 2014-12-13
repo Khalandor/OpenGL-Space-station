@@ -283,6 +283,10 @@ float degreeToRad(float degree) {
     return degree * 2 * PI / 360.0f;
 }
 
+void debug() {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+}
+
 class Texture {
 protected:
     GLuint tex;
@@ -887,10 +891,10 @@ public:
         Vector top = Vector(0, 1, 0);
         glBegin(GL_TRIANGLE_FAN);
         glNormal(top * -1);
-        glVertex(top * 0.9);
+        glVertex(top * 0.95);
         for (int i = 0; i < vertexNr; i++) {
-            glNormal(outsideVertexes[i] * (-0.9));
-            glVertex(outsideVertexes[i]);
+            glNormal(outsideVertexes[i] * (-1));
+            glVertex(outsideVertexes[i] * (0.95));
         }
         glEnd();
     }
@@ -1244,14 +1248,12 @@ public:
 } satellite;
 
 class Station : public Object {
+    const static long orbitTime = 2000000;
+    const static long rotationTime = 100000;
+
     Vector pos;
-
-    long orbitTime, rotationTime;
-
-    float orbitAngleRad, orbitDistance;
+    float orbitDistance, orbitAngleRad, rotationAngleDeg;
     Vector orbitMiddle;
-
-    float rotationAngleDeg;
 
     RotatedSpline rotatedSpline;
     FramedRectangle solarPanel1;
@@ -1263,8 +1265,6 @@ public:
 
     Station(Ellipsoid const &planet, float orbitDistance, float orbitAngle)
             : orbitDistance(orbitDistance), orbitAngleRad(orbitAngle) {
-        orbitTime = 2000000;
-        rotationTime = 100000;
         rotationAngleDeg = 0;
         orbitMiddle = planet.getCenter();
 
@@ -1315,7 +1315,6 @@ public:
     float getHoleRadius() const {
         return rotatedSpline.getHoleRadius();
     }
-
 
     long getOrbitTime() const {
         return orbitTime;
@@ -1394,10 +1393,6 @@ public:
         glDisable(lightId);
     }
 };
-
-void debug() {
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-}
 
 class Camera {
     Vector eye, lookat, up;
@@ -1492,87 +1487,9 @@ class Scene {
         satellite.addRotationAngleDegree(satellite.getRotationSpeed() * deltaT / 1000);
     }
 
-public:
-    void build() {
-        win = false;
-
-        // Earth
-        generateTextures();
-        planetTexture.setOGL();
-        Vector earthCenter = Vector(-4.0f, 0, -25.0f);
-        earth = Ellipsoid(10, 10, 10, planet, earthCenter, true);
-        earth.setTexture(&planetTexture);
-        earth.generate(30);
-
-        // Atmosphere
-        atmosphere = Ellipsoid(11, 11, 11, atmosphereMat, earthCenter, false);
-        atmosphere.generate(40);
-
-        // Sun
-        Vector sunCenter = Vector(8, 5, 3);
-        sun = Ellipsoid(1, 1, 1, sunColor, sunCenter, false);
-        sun.generate(10);
-
-        // Station
-        float orbitDistance = 20;
-        orbitStartAngle = degreeToRad(60);
-        station = Station(earth, orbitDistance, orbitStartAngle);
-        station.generate();
-
-        // Satellite
-        Vector satellitePos = station.getPos() + Vector(1, -1, 2);
-        satellite = Satellite(satellitePos, 0.3f);
-        satellite.generate();
-
-        // Light
-        light = Light(0, sunCenter, sunLight, false);
-
-        // Camera
-        ropeLength = 6;
-        stretchLength = 3;
-        kickDistance = 4;
-        floatingDirection = Vector(0, 0, 1);
-        floatingSpeed = 1;
-        hasKicked = true;
-        stretching = false;
-        camera.setLookat(station.getPos());
-        camera.setEye(camera.getLookat() + Vector(0, 0, 3));
-        camera.init();
-        camera.setOGL();
-    };
-
-    void render() {
-        disableThrowBack();
-        space.draw();
-        light.enable();
-
-        enableThrowBackCW();
-        earth.draw();
-        disableThrowBack();
-
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        enableThrowBackCW();
-        atmosphere.draw();
-        disableThrowBack();
-        glDisable(GL_BLEND);
-
-        station.draw();
-        satellite.draw();
-
-        light.disable();
-        glColor3f(sunColor.getAmbient().r, sunColor.getAmbient().g, sunColor.getAmbient().b);
-        enableThrowBackCW();
-        sun.draw();
-    };
-
     void generateTextures() {
         planetTexture.generate();
         space.generate();
-    }
-
-    bool isInsideHole() {
-        return (station.getPos() - satellite.getPos()).length() < station.getHoleRadius() + satellite.getSize();
     }
 
     void moveCamera(long sliceEnd, long deltaT) {
@@ -1634,6 +1551,84 @@ public:
             win = true;
     }
 
+public:
+    void build() {
+        win = false;
+
+        // Earth
+        generateTextures();
+        planetTexture.setOGL();
+        Vector earthCenter = Vector(-4.0f, 0, -25.0f);
+        earth = Ellipsoid(10, 10, 10, planet, earthCenter, true);
+        earth.setTexture(&planetTexture);
+        earth.generate(30);
+
+        // Atmosphere
+        atmosphere = Ellipsoid(11, 11, 11, atmosphereMat, earthCenter, false);
+        atmosphere.generate(40);
+
+        // Sun
+        Vector sunCenter = Vector(8, 5, 3);
+        sun = Ellipsoid(1, 1, 1, sunColor, sunCenter, false);
+        sun.generate(10);
+
+        // Station
+        float orbitDistance = 20;
+        orbitStartAngle = degreeToRad(60);
+        station = Station(earth, orbitDistance, orbitStartAngle);
+        station.generate();
+
+        // Satellite
+        Vector satellitePos = station.getPos() + Vector(-2, 2, 3);
+        satellite = Satellite(satellitePos, 0.3f);
+        satellite.generate();
+
+        // Light
+        light = Light(0, sunCenter, sunLight, false);
+
+        // Camera
+        ropeLength = 6;
+        stretchLength = 3;
+        kickDistance = 4;
+        floatingDirection = Vector(0, 0, 1);
+        floatingSpeed = 1;
+        hasKicked = true;
+        stretching = false;
+        camera.setLookat(station.getPos());
+        camera.setEye(camera.getLookat() + Vector(0, 0, 3));
+        camera.init();
+        camera.setOGL();
+    };
+
+    void render() {
+        disableThrowBack();
+        space.draw();
+        light.enable();
+
+        enableThrowBackCW();
+        earth.draw();
+        disableThrowBack();
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        enableThrowBackCW();
+        atmosphere.draw();
+        disableThrowBack();
+        glDisable(GL_BLEND);
+
+        station.draw();
+        satellite.draw();
+
+        light.disable();
+        glColor3f(sunColor.getAmbient().r, sunColor.getAmbient().g, sunColor.getAmbient().b);
+        enableThrowBackCW();
+        sun.draw();
+    };
+
+    bool isInsideHole() {
+        return (station.getPos() - satellite.getPos()).length() < station.getHoleRadius() + satellite.getSize();
+    }
+
     void simulateWorldSince(long tstart) {
         if (!win) {
             int dt = 25;
@@ -1643,7 +1638,6 @@ public:
             }
         }
     }
-
 } scene;
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
