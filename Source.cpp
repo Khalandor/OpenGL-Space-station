@@ -66,6 +66,7 @@
 // Innentol modosithatod...
 
 #define PI 3.14159265359f
+long currentTime;
 
 //--------------------------------------------------------
 // 3D Vektor
@@ -240,7 +241,7 @@ public:
 const Material chrome = Material(Color(0.4, 0.4, 0.4), Color(0.25, 0.25, 0.25) * 0.4, Color(0.77, 0.77, 0.77), 0.6);
 const Material solarPanelMaterial = Material(Color(0.01, 0.01, 0.01), Color(0.01, 0.01, 0.01), Color(0.1, 0.1, 0.1), 0.8);
 const Material planet = Material(Color(0.06, 0.06, 0.39) * 7, Color(0, 0, 0), Color(0, 0, 0), 0.0);
-const Material sunColor = Material(Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), Color(0.93, 0.88, 0.14), 0.0) * 2.5f;
+const Material sunColor = Material(Color(0, 0, 0), Color(0.93, 0.88, 0.14), Color(0, 0, 0), 0.0) * 2.5f;
 const Material sunLight = Material(Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), 1.0) * 0.5f;
 Color atmosphereColor = Color(0.62, 0.85, 0.93 * 1.2) * 0.8;
 const Material atmosphereMat = Material(atmosphereColor * 0.5, Color(0, 0, 0), atmosphereColor, 10.0);
@@ -1054,42 +1055,48 @@ public:
 };
 
 class Jet : public Object {
-    Cone jetOutside;
+    Vector direction;
     Vector pos;
-    // fire;
+    Cone jet;
+    Ellipsoid fire;
     bool lit;
-    long startTime;
 
+    long endTime;
+    long maxTime;
 
 public:
     Jet() : Object() {
     }
 
-    Jet(float size, Vector const &pos, Vector const &rotation) : Object(), pos(pos) {
-        jetOutside = Cone(size, size, pos, rotation, chrome);
+    Jet(float size, Vector const &pos, Vector const &rotation, Vector const &direction)
+            : Object(), pos(pos), direction(direction) {
+        jet = Cone(size, size, pos, rotation, chrome);
+        Vector absDirection = Vector(fabsf(direction.x), fabsf(direction.y), fabsf(direction.z));
+        Vector switchedDirection = (Vector(1, 1, 1) - absDirection);
+        Vector fireSize = Vector(size, size, size) - switchedDirection * size / 1.5;
+        fire = Ellipsoid(fireSize.x, fireSize.y, fireSize.z, sunColor, pos + direction * size, false);
         lit = false;
+        maxTime = 700;
     }
 
     void draw() {
-        jetOutside.draw();
+        jet.draw();
+        if (lit && currentTime < endTime)
+            fire.draw();
     }
 
     void generate(int resolution) {
-        jetOutside.generate(resolution);
+        jet.generate(resolution);
+        fire.generate(resolution);
     }
 
-    void setLit(bool lit) {
-        Jet::lit = lit;
+    void start(long startTime) {
+        lit = true;
+        endTime = startTime + maxTime;
     }
 
-
-    void setStartTime(long startTime) {
-        Jet::startTime = startTime;
-    }
-
-
-    Vector const &getPos() const {
-        return pos;
+    Vector const &getDirection() const {
+        return direction;
     }
 };
 
@@ -1110,12 +1117,12 @@ public:
               size(size) {
         satelliteBody = Ellipsoid(size, size, size, chrome, Vector(0, 0, 0), false);
 
-        jetLeft = Jet(size, Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f));
-        jetRight = Jet(size, Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f));
-        jetBack = Jet(size, Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f));
-        jetFront = Jet(size, Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f));
-        jetBottom = Jet(size, Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f));
-        jetTop = Jet(size, Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f));
+        jetLeft = Jet(size, Vector(-size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, -90.0f), Vector(-1, 0, 0));
+        jetRight = Jet(size, Vector(size * 2.0f, 0.0f, 0.0f), Vector(0.0f, 0.0f, 90.0f), Vector(1, 0, 0));
+        jetBack = Jet(size, Vector(0.0f, 0.0f, size * 2.0f), Vector(-90.0f, 0.0f, 0.0f), Vector(0, 0, 1));
+        jetFront = Jet(size, Vector(0.0f, 0.0f, -size * 2.0f), Vector(90.0f, 0.0f, 0.0f), Vector(0, 0, -1));
+        jetBottom = Jet(size, Vector(0.0f, -size * 2.0f, 0.0f), Vector(0.0f, 0.0f, 0.0f), Vector(0, -1, 0));
+        jetTop = Jet(size, Vector(0.0f, size * 2.0f, 0.0f), Vector(180.0f, 0.0f, 0.0f), Vector(0, 1, 0));
         v = Vector(0, 0, 0);
     }
 
@@ -1148,9 +1155,8 @@ public:
     }
 
     void startJet(Jet *jet, long time) {
-        jet->setStartTime(time);
-        jet->setLit(true);
-        Vector impulse = jet->getPos() * (-1);
+        jet->start(time);
+        Vector impulse = jet->getDirection() * (-1) * size * 2;
         v = v + impulse;
     }
 
@@ -1365,8 +1371,6 @@ public:
 };
 
 class Scene {
-    long currentTime;
-
     Vector eye, lookat;
 
     Light light;
@@ -1548,14 +1552,6 @@ public:
         }
     }
 
-    long getTime() const {
-        return currentTime;
-    }
-
-    void setTime(long currentTime) {
-        Scene::currentTime = currentTime;
-    }
-
 } scene;
 
 // Inicializacio, a program futasanak kezdeten, az OpenGL kontextus letrehozasa utan hivodik meg (ld. main() fv.)
@@ -1601,7 +1597,7 @@ void onKeyboard(unsigned char key, int x, int y) {
             jet = NULL;
     }
     if (jet != NULL) {
-        satellite.startJet(jet, scene.getTime());
+        satellite.startJet(jet, currentTime);
         glutPostRedisplay();
     }
 
@@ -1625,8 +1621,8 @@ void onMouseMotion(int x, int y) {
 
 // `Idle' esemenykezelo, jelzi, hogy az ido telik, az Idle esemenyek frekvenciajara csak a 0 a garantalt minimalis ertek
 void onIdle() {
-    long oldTime = scene.getTime();
-    scene.setTime(glutGet(GLUT_ELAPSED_TIME));        // program inditasa ota eltelt ido
+    long oldTime = currentTime;
+    currentTime = glutGet(GLUT_ELAPSED_TIME);        // program inditasa ota eltelt ido
     scene.simulateWorldSince(oldTime);
     glutPostRedisplay();
 
