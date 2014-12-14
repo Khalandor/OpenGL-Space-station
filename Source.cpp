@@ -1292,7 +1292,7 @@ public:
     }
 
     void generate() {
-        rotatedSpline.generate(100, 100);
+        rotatedSpline.generate(240, 100);
         solarPanel1.generate();
         solarPanel2.generate();
     }
